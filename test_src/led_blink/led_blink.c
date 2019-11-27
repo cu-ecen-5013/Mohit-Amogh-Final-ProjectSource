@@ -31,18 +31,18 @@ int main(void)
    for(int i=0; i<COUNT; i++)
    {
        // led on
-       if((ret = gpio_set_dir(GPIO, 1)) != 0)
+       if((ret = gpio_set_value(GPIO, 1)) != 0)
        {
-           perror("gpio_set_dir");
+           perror("gpio_set_value");
            exit(1);
        }
 
        sleep(1);
        
        // led off
-       if((ret = gpio_set_dir(GPIO, 0)) != 0)
+       if((ret = gpio_set_value(GPIO, 0)) != 0)
        {
-           perror("gpio_set_dir");
+           perror("gpio_set_value");
            exit(1);
        }
        
