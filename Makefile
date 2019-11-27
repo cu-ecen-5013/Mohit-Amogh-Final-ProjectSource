@@ -14,16 +14,16 @@ ifeq ($(OPTFLAGS),)
 	OPTFLAGS = -O0
 endif
 
-all: led_blink
+all: cap_sensor
 
-led_blink: led_blink.o gpio.o
-	$(CC) $(CCFLAGS) led_blink.o gpio.o -o led_blink
+cap_sensor: cap_sensor.o gpio.o
+	$(CC) $(CCFLAGS) cap_sensor.o gpio.o -o cap_sensor
 
-led_blink.o: test_src/led_blink/led_blink.c test_src/led_blink/gpio.h
-	$(CC) $(CCFLAGS) -c test_src/led_blink/led_blink.c
+cap_sensor.o: test_src/cap_sensor/cap_sensor.c test_src/cap_sensor/gpio.h
+	$(CC) $(CCFLAGS) -c test_src/cap_sensor/cap_sensor.c
 
-gpio.o: test_src/led_blink/gpio.c test_src/led_blink/gpio.h
-	$(CC) $(CCFLAGS) -c test_src/led_blink/gpio.c
+gpio.o: test_src/cap_sensor/gpio.c test_src/cap_sensor/gpio.h
+	$(CC) $(CCFLAGS) -c test_src/cap_sensor/gpio.c
 
 clean:
-	-rm -f *.o led_blink
+	-rm -f *.o cap_sensor
