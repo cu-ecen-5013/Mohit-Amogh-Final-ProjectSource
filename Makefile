@@ -14,8 +14,13 @@ ifeq ($(OPTFLAGS),)
 	OPTFLAGS = -O0
 endif
 
+ifeq ($(INCPATH),)
 INCPATH = test_src/led_blink/
+endif
+
+ifeq ($(SRCPATH),)
 SRCPATH = test_src/led_blink/
+endif
 
 all: led_blink
 
