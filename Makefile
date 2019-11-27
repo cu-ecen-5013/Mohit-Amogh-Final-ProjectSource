@@ -14,11 +14,19 @@ ifeq ($(OPTFLAGS),)
 	OPTFLAGS = -O0
 endif
 
-all: hello_world
+INCPATH = test_src/led_blink/
+SRCPATH = test_src/led_blink/
 
-hello_world: test_src/hello_world/hello_world.c
-	$(CC) $(CCFLAGS) $(OPTFLAGS) -o test_src/hello_world/hello_world test_src/hello_world/hello_world.c
+all: led_blink
+
+led_blink: led_blink.o gpio.o
+	$(CC) $(CCFLAGS) led_blink.o gpio.o -o led_blink
+
+led_blink.o: $(SRCPATH)led_blink.c $(INCPATH)gpio.h
+	$(CC) $(CCFLAGS) -c $(SRCPATH)led_blink.c
+
+gpio.o: $(SRCPATH)gpio.c $(INCPATH)gpio.h
+	$(CC) $(CCFLAGS) -c $(SRCPATH)gpio.c
 
 clean:
-	-rm -f *.o *.d test_src/hello_world/hello_world/*.o test_src/hello_world/hello_world/*.d
-	-rm -f test_src/hello_world/hello_world
+	-rm -f *.o led_blink
