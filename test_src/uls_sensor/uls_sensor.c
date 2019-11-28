@@ -32,11 +32,12 @@ int main(void)
     struct timespec echo_start, echo_end;
     struct timespec trig_low = { 0, 2000 };
     struct timespec trig_high = { 0, 10000 };
-    struct timespec cycle = { 0, 80000000 };
+    struct timespec cycle = { 0, 1000000000 };
     struct pollfd echo_poll;
     int nfds = 1;
     int time_elapsed_ns = 0;
     int distance = 0;
+    int echo_value = -1;
 
     printf("ULTRASONIC SENSOR TEST\n\n");
     
@@ -78,12 +79,16 @@ int main(void)
 
         // poll for falling edge; timeout = 1 sec
         ret = poll(&echo_poll, nfds, 1);
-        if(ret < 0) { perror("\rerror: poll"); continue; }      // error check
-        else if(ret == 0) { printf("\rtimeout"); continue; }     // poll timeout
+        if(ret < 0) { perror("error: poll\n"); continue; }      // error check
+        else if(ret == 0) { printf("timeout\n"); continue; }     // poll timeout
         if(echo_poll.revents & POLLPRI)                         // echo falling edge occurs
         {
             // record echo stop time (echo pin gets low)
             clock_gettime(CLOCK_MONOTONIC, &echo_end);
+
+            // get echo value - should be 0
+            if((ret = gpio_get_value(ECHO_GPIO, &echo_value)) != 0) { perror("gpio_get_value"); exit(1); }
+            printf("echo: %d\n", echo_value);
 
             // calculate time difference
             time_elapsed_ns = (echo_end.tv_nsec > echo_start.tv_nsec) ? (echo_end.tv_nsec - echo_start.tv_nsec) : (echo_end.tv_nsec - echo_start.tv_nsec + 1000000000);
@@ -92,8 +97,7 @@ int main(void)
             distance = time_elapsed_ns/(58 * 1000);
 
             // print time difference
-            printf("\r%d", distance);
-            printf(" cm");
+            printf("%d cm\n\n", distance);
 
             // set led if distance is less than 50 cm
             if(distance <= 50) {
