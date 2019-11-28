@@ -56,10 +56,10 @@ int main(void)
     // set echo edge to falling (interrupt would be generated on falling edge)
     if((ret = gpio_set_edge(ECHO_GPIO, kPollEdge_falling)) != 0) { perror("gpio_set_edge"); exit(1); }
 
-    // stuff the poll structure
-    memset((void*) &echo_poll, 0, sizeof(echo_poll));
-    echo_poll.fd = gpio_fd_open(ECHO_GPIO);
-    echo_poll.events = POLLPRI;
+    // // stuff the poll structure
+    // memset((void*) &echo_poll, 0, sizeof(echo_poll));
+    // echo_poll.fd = gpio_fd_open(ECHO_GPIO);
+    // echo_poll.events = POLLPRI;
 
     printf("Distance:\n");
 
@@ -79,13 +79,30 @@ int main(void)
         // record echo start time (echo pin gets high)
         clock_gettime(CLOCK_MONOTONIC, &echo_start);
 
-        // poll for falling edge; timeout = 100 ms
-        echo_poll.revents = 0;
-        ret = poll(&echo_poll, nfds, 100);
-        len = read(echo_poll.fd, buff, 64);
-        if(ret < 0) { perror("error: poll\n"); continue; }      // error check
-        else if(ret == 0) { printf("timeout\n"); continue; }     // poll timeout
-        if(echo_poll.revents & POLLPRI)                         // echo falling edge occurs
+        // // poll for falling edge; timeout = 100 ms
+        // echo_poll.revents = 0;
+        // ret = poll(&echo_poll, nfds, 100);
+        // len = read(echo_poll.fd, buff, 64);
+        // if(ret < 0) { perror("error: poll\n"); continue; }      // error check
+        // else if(ret == 0) { printf("timeout\n"); continue; }     // poll timeout
+        // if(echo_poll.revents & POLLPRI)                         // echo falling edge occurs
+        int last_echo_value = -1;
+        while(1)
+        {
+            if((ret = gpio_get_value(ECHO_GPIO, &echo_value)) != 0) { perror("gpio_get_value"); exit(1); }
+            if(echo_value == 0)
+            {
+                if(last_echo_value == 1)
+                {
+                    break;
+                }
+                last_echo_value = echo_value;
+            }
+            else
+            {
+                last_echo_value = echo_value;
+            }
+        }
         {
             // record echo stop time (echo pin gets low)
             clock_gettime(CLOCK_MONOTONIC, &echo_end);
