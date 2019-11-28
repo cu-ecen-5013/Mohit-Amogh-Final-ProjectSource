@@ -31,7 +31,7 @@ int main(void)
     int ret = 0;
     struct timespec echo_start, echo_end;
     struct timespec trig_low = { 0, 2000 };
-    struct timespec trig_high = { 0, 10000 };
+    struct timespec trig_high = { 0, 15000 };
     struct timespec cycle = { 1, 0 };
     struct pollfd echo_poll;
     int nfds = 1;
@@ -39,7 +39,7 @@ int main(void)
     float distance = 0.0;
     int echo_value = -1;
     int len;
-    char buff[100];
+    char buff[64];
 
     printf("ULTRASONIC SENSOR TEST\n\n");
     
@@ -81,8 +81,8 @@ int main(void)
 
         // poll for falling edge; timeout = 100 ms
         echo_poll.revents = 0;
-        ret = poll(&echo_poll, nfds, 100000);
-        len = read(echo_poll.fd, buff, 100);
+        ret = poll(&echo_poll, nfds, 100);
+        len = read(echo_poll.fd, buff, 64);
         if(ret < 0) { perror("error: poll\n"); continue; }      // error check
         else if(ret == 0) { printf("timeout\n"); continue; }     // poll timeout
         if(echo_poll.revents & POLLPRI)                         // echo falling edge occurs
