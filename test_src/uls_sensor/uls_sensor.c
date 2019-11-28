@@ -114,10 +114,10 @@ int main(void)
                 if((ret = gpio_set_value(BB_LED_GPIO, OFF)) != 0) { perror("gpio_set_value"); exit(1); }
             }
         }
-    }
 
-    // measurement cycle should be atleast 60 ms according to datasheet
-    nanosleep(&cycle, NULL);
+        // measurement cycle should be atleast 60 ms according to datasheet
+        nanosleep(&cycle, NULL);
+    }
 
     // remove gpio files
     if((ret = gpio_unexport(TRIG_GPIO)) != 0) { perror("gpio_unexport"); exit(1); }
