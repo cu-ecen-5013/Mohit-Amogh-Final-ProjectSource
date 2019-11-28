@@ -38,6 +38,8 @@ int main(void)
     int time_elapsed_ns = 0;
     float distance = 0.0;
     int echo_value = -1;
+    int len;
+    char buff[100];
 
     printf("ULTRASONIC SENSOR TEST\n\n");
     
@@ -78,7 +80,9 @@ int main(void)
         clock_gettime(CLOCK_MONOTONIC, &echo_start);
 
         // poll for falling edge; timeout = 1 sec
+        echo_poll.revents = 0;
         ret = poll(&echo_poll, nfds, 1);
+        len = read(echo_poll.fd, buff, 100);
         if(ret < 0) { perror("error: poll\n"); continue; }      // error check
         else if(ret == 0) { printf("timeout\n"); continue; }     // poll timeout
         if(echo_poll.revents & POLLPRI)                         // echo falling edge occurs
