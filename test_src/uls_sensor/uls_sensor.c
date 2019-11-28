@@ -32,7 +32,7 @@ int main(void)
     struct timespec echo_start, echo_end;
     struct timespec trig_low = { 0, 2000 };
     struct timespec trig_high = { 0, 10000 };
-    struct timespec cycle = { 0, 1000000000 };
+    struct timespec cycle = { 1, 0 };
     struct pollfd echo_poll;
     int nfds = 1;
     int time_elapsed_ns = 0;
@@ -92,6 +92,9 @@ int main(void)
 
             // calculate time difference
             time_elapsed_ns = (echo_end.tv_nsec > echo_start.tv_nsec) ? (echo_end.tv_nsec - echo_start.tv_nsec) : (echo_end.tv_nsec - echo_start.tv_nsec + 1000000000);
+            printf("echo start time: %ld s %ld ns\n", echo_start.tv_sec, echo_start.tv_nsec);
+            printf("echo end time:   %ld s %ld ns\n", echo_end.tv_sec, echo_end.tv_nsec);
+            printf("elapsed time:    %d ns\n", time_elapsed_ns);
 
             // calculate distance based on formula given in datasheet
             distance = time_elapsed_ns/(58 * 1000);
