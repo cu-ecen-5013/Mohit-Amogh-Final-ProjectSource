@@ -70,7 +70,7 @@ int main(void)
         
         // wait 2 us then set trig pin high
         nanosleep(&trig_low, NULL);
-        // if((ret = gpio_set_value(TRIG_GPIO, ON)) != 0) { perror("gpio_set_value"); exit(1); }
+        if((ret = gpio_set_value(TRIG_GPIO, ON)) != 0) { perror("gpio_set_value"); exit(1); }
 
         // wait 10 us then set trig pin low
         nanosleep(&trig_high, NULL);
@@ -79,9 +79,9 @@ int main(void)
         // record echo start time (echo pin gets high)
         clock_gettime(CLOCK_MONOTONIC, &echo_start);
 
-        // poll for falling edge; timeout = 1 sec
+        // poll for falling edge; timeout = 100 ms
         echo_poll.revents = 0;
-        ret = poll(&echo_poll, nfds, 1);
+        ret = poll(&echo_poll, nfds, 100000);
         len = read(echo_poll.fd, buff, 100);
         if(ret < 0) { perror("error: poll\n"); continue; }      // error check
         else if(ret == 0) { printf("timeout\n"); continue; }     // poll timeout
@@ -114,10 +114,10 @@ int main(void)
                 if((ret = gpio_set_value(BB_LED_GPIO, OFF)) != 0) { perror("gpio_set_value"); exit(1); }
             }
         }
-
-        // measurement cycle should be atleast 60 ms according to datasheet
-        nanosleep(&cycle, NULL);
     }
+
+    // measurement cycle should be atleast 60 ms according to datasheet
+    nanosleep(&cycle, NULL);
 
     // remove gpio files
     if((ret = gpio_unexport(TRIG_GPIO)) != 0) { perror("gpio_unexport"); exit(1); }
