@@ -101,7 +101,7 @@ int main(void)
             printf("elapsed time:    %d ns\n", time_elapsed_ns);
 
             // calculate distance based on formula given in datasheet
-            distance = (float)time_elapsed_ns/(58 * 1000);
+            distance = (float)time_elapsed_ns*0.034/(1000*2);
 
             // print time difference
             printf("%f cm\n\n", distance);
