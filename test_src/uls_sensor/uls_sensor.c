@@ -1,5 +1,5 @@
 /* Program to measure distance using HC-SR04 ultrasonic sensor
- * Distance is measured continuously
+ * Distance is measured continuously every 1 second
  */
 
 /* References:
@@ -36,7 +36,7 @@ int main(void)
     struct pollfd echo_poll;
     int nfds = 1;
     int time_elapsed_ns = 0;
-    int distance = 0;
+    float distance = 0.0;
     int echo_value = -1;
 
     printf("ULTRASONIC SENSOR TEST\n\n");
@@ -68,7 +68,7 @@ int main(void)
         
         // wait 2 us then set trig pin high
         nanosleep(&trig_low, NULL);
-        if((ret = gpio_set_value(TRIG_GPIO, ON)) != 0) { perror("gpio_set_value"); exit(1); }
+        // if((ret = gpio_set_value(TRIG_GPIO, ON)) != 0) { perror("gpio_set_value"); exit(1); }
 
         // wait 10 us then set trig pin low
         nanosleep(&trig_high, NULL);
@@ -97,10 +97,10 @@ int main(void)
             printf("elapsed time:    %d ns\n", time_elapsed_ns);
 
             // calculate distance based on formula given in datasheet
-            distance = time_elapsed_ns/(58 * 1000);
+            distance = (float)time_elapsed_ns/(58 * 1000);
 
             // print time difference
-            printf("%d cm\n\n", distance);
+            printf("%f cm\n\n", distance);
 
             // set led if distance is less than 50 cm
             if(distance <= 50) {
