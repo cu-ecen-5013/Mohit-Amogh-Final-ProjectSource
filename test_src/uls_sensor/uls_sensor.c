@@ -38,6 +38,7 @@ int main(void)
     int time_elapsed_ns = 0;
     float distance = 0.0;
     int echo_value = -1;
+    int trig_value = -1;
     int len;
     char buff[64];
 
@@ -67,14 +68,20 @@ int main(void)
     {
         // set trig pin low
         if((ret = gpio_set_value(TRIG_GPIO, OFF)) != 0) { perror("gpio_set_value"); exit(1); }
+        if((ret = gpio_get_value(TRIG_GPIO, &trig_value)) != 0) { perror("gpio_get_value"); exit(1); }
+        printf("trig: %d\n", trig_value);
         
         // wait 2 us then set trig pin high
         nanosleep(&trig_low, NULL);
         if((ret = gpio_set_value(TRIG_GPIO, ON)) != 0) { perror("gpio_set_value"); exit(1); }
+        if((ret = gpio_get_value(TRIG_GPIO, &trig_value)) != 0) { perror("gpio_get_value"); exit(1); }
+        printf("trig: %d\n", trig_value);
 
         // wait 10 us then set trig pin low
         nanosleep(&trig_high, NULL);
         if((ret = gpio_set_value(TRIG_GPIO, OFF)) != 0) { perror("gpio_set_value"); exit(1); }
+        if((ret = gpio_get_value(TRIG_GPIO, &trig_value)) != 0) { perror("gpio_get_value"); exit(1); }
+        printf("trig: %d\n", trig_value);
 
         // record echo start time (echo pin gets high)
         clock_gettime(CLOCK_MONOTONIC, &echo_start);
