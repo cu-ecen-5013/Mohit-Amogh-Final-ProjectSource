@@ -24,14 +24,14 @@
 
 #define BB_LED_GPIO     (53)
 #define TRIG_GPIO       (66)
-#define ECHO_GPIO       (69)
+#define ECHO_GPIO       (67)
 
 int main(void)
 {
     int ret = 0;
     struct timespec echo_start, echo_end;
     struct timespec trig_low = { 0, 2000 };
-    struct timespec trig_high = { 0, 15000 };
+    struct timespec trig_high = { 0, 10000 };
     struct timespec cycle = { 1, 0 };
     struct pollfd echo_poll;
     int nfds = 1;
@@ -61,7 +61,7 @@ int main(void)
     // echo_poll.fd = gpio_fd_open(ECHO_GPIO);
     // echo_poll.events = POLLPRI;
 
-    printf("Distance:\n");
+    // printf("Distance:\n");
 
     while(1)
     {
@@ -79,30 +79,30 @@ int main(void)
         // record echo start time (echo pin gets high)
         clock_gettime(CLOCK_MONOTONIC, &echo_start);
 
-        // // poll for falling edge; timeout = 100 ms
-        // echo_poll.revents = 0;
-        // ret = poll(&echo_poll, nfds, 100);
-        // len = read(echo_poll.fd, buff, 64);
-        // if(ret < 0) { perror("error: poll\n"); continue; }      // error check
-        // else if(ret == 0) { printf("timeout\n"); continue; }     // poll timeout
-        // if(echo_poll.revents & POLLPRI)                         // echo falling edge occurs
-        int last_echo_value = -1;
-        while(1)
-        {
-            if((ret = gpio_get_value(ECHO_GPIO, &echo_value)) != 0) { perror("gpio_get_value"); exit(1); }
-            if(echo_value == 0)
-            {
-                if(last_echo_value == 1)
-                {
-                    break;
-                }
-                last_echo_value = echo_value;
-            }
-            else
-            {
-                last_echo_value = echo_value;
-            }
-        }
+        // poll for falling edge; timeout = 100 ms
+        echo_poll.revents = 0;
+        ret = poll(&echo_poll, nfds, 100);
+        len = read(echo_poll.fd, buff, 64);
+        if(ret < 0) { perror("error: poll\n"); continue; }      // error check
+        else if(ret == 0) { printf("timeout\n"); continue; }     // poll timeout
+        if(echo_poll.revents & POLLPRI)                         // echo falling edge occurs
+        // int last_echo_value = -1;
+        // while(1)
+        // {
+        //     if((ret = gpio_get_value(ECHO_GPIO, &echo_value)) != 0) { perror("gpio_get_value"); exit(1); }
+        //     if(echo_value == 0)
+        //     {
+        //         if(last_echo_value == 1)
+        //         {
+        //             break;
+        //         }
+        //         last_echo_value = echo_value;
+        //     }
+        //     else
+        //     {
+        //         last_echo_value = echo_value;
+        //     }
+        // }
         {
             // record echo stop time (echo pin gets low)
             clock_gettime(CLOCK_MONOTONIC, &echo_end);
