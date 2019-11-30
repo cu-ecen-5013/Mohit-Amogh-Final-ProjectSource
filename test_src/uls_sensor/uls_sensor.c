@@ -58,9 +58,9 @@ int main(void)
     if((ret = gpio_set_edge(ECHO_GPIO, kPollEdge_falling)) != 0) { perror("gpio_set_edge"); exit(1); }
 
     // // stuff the poll structure
-    // memset((void*) &echo_poll, 0, sizeof(echo_poll));
-    // echo_poll.fd = gpio_fd_open(ECHO_GPIO);
-    // echo_poll.events = POLLPRI;
+    memset((void*) &echo_poll, 0, sizeof(echo_poll));
+    echo_poll.fd = gpio_fd_open(ECHO_GPIO);
+    echo_poll.events = POLLPRI;
 
     // printf("Distance:\n");
 
