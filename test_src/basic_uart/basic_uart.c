@@ -12,6 +12,8 @@ int main(void)
     int fd, cnt;
     struct termios options;
 
+    printf("111\n\n");
+
     if ((fd = open("/dev/ttyO1", O_RDWR | O_NOCTTY)) < 0)
     {
         perror("open\n");
@@ -22,7 +24,7 @@ int main(void)
     
     // communication parameters
     // 9600 baud, 8-bit, enable receiver, no modem control lines
-    options.c_cflag = B9600 | CS8 | CREAD | CLOCAL;
+    options.c_cflag = B115200 | CS8 | CREAD | CLOCAL;
     // ignore partity errors, CR -> newline
     options.c_iflag = IGNPAR | ICRNL;
     // discard file information not transmitted
@@ -48,7 +50,7 @@ int main(void)
     // else                // child
     // {
     //     // let parent transmit the string before receiving
-    //     usleep(100000);
+        usleep(100000);
 
         printf("[C]: Receiving string\n");
 
