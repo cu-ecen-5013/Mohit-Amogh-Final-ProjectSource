@@ -1,4 +1,4 @@
-// References taken from Exploring BeagleBone book by Derek Molloy
+// References taken from Exploring BeagleBone book by Derek Molloy and termios man page
 // Parent opens UART1 and transmits a string
 // Child opens UART4 and receives the sring
 
@@ -12,7 +12,7 @@ int main(void)
     int fd, cnt;
     struct termios options;
 
-    printf("111\n\n");
+    printf("222\n\n");
 
     if ((fd = open("/dev/ttyO1", O_RDWR | O_NOCTTY)) < 0)
     {
@@ -20,17 +20,38 @@ int main(void)
         return -1;
     }
 
-    tcgetattr(fd, &options); // sets termios parameters
+    fcntl(fd, F_SETFL, 0);
+    tcgetattr(fd, &options);
+    if((cfsetispeed(&options, B115200)) == -1)
+    {
+        perror("input baud\n");
+        return -1;
+    }
+    if((cfsetospeed(&options, B115200)) == -1)
+    {
+        perror("output baud\n");
+        return -1;
+    } 
+
+    options.c_cflag |= (CLOCAL | CS8);
+    options.c_iflag &= ~(ISTRIP | IXON | INLCR | PARMRK | ICRNL | IGNBRK);
+    options.c_oflag &=  ~(OPOST);
+    options.c_lflag &= ~(ICANON | ECHO | ECHONL | ISIG | IEXTEN);
+
+    tcsetattr(fd, TCSAFLUSH, &options);
+
+
+    // tcgetattr(fd, &options); // sets termios parameters
     
-    // communication parameters
-    // 9600 baud, 8-bit, enable receiver, no modem control lines
-    options.c_cflag = B115200 | CS8 | CREAD | CLOCAL;
-    // ignore partity errors, CR -> newline
-    options.c_iflag = IGNPAR | ICRNL;
-    // discard file information not transmitted
-    tcflush(fd, TCIFLUSH);
-    // changes occur immmediately
-    tcsetattr(fd, TCSANOW, &options);
+    // // communication parameters
+    // // 9600 baud, 8-bit, enable receiver, no modem control lines
+    // options.c_cflag = B115200 | CS8 | CREAD | CLOCAL;
+    // // ignore partity errors, CR -> newline
+    // options.c_iflag = IGNPAR | ICRNL;
+    // // discard file information not transmitted
+    // tcflush(fd, TCIFLUSH);
+    // // changes occur immmediately
+    // tcsetattr(fd, TCSANOW, &options);
     
     printf("Basic UART test\n");
 
