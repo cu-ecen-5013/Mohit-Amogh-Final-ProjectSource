@@ -14,16 +14,11 @@ ifeq ($(OPTFLAGS),)
 	OPTFLAGS = -O0
 endif
 
-all: uls_sensor
+all: basic_uart
 
-uls_sensor: uls_sensor.o gpio.o
-	$(CC) $(CCFLAGS) uls_sensor.o gpio.o -o uls_sensor
-
-uls_sensor.o: test_src/uls_sensor/uls_sensor.c test_src/uls_sensor/gpio.h
-	$(CC) $(CCFLAGS) -c test_src/uls_sensor/uls_sensor.c
-
-gpio.o: test_src/uls_sensor/gpio.c test_src/uls_sensor/gpio.h
-	$(CC) $(CCFLAGS) -c test_src/uls_sensor/gpio.c
+basic_uart: test_src/basic_uart/basic_uart.c
+	$(CC) $(CCFLAGS) $(OPTFLAGS) -o test_src/basic_uart/basic_uart test_src/basic_uart/basic_uart.c
 
 clean:
-	-rm -f *.o uls_sensor
+	-rm -f *.o *.d test_src/basic_uart/basic_uart/*.o test_src/basic_uart/basic_uart/*.d
+	-rm -f test_src/basic_uart/basic_uart
