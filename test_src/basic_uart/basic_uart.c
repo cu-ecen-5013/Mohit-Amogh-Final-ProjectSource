@@ -62,8 +62,8 @@ int main(void)
         printf("[C]: Receiving string\n");
 
         // receive string
-        unsigned char string_rx[13];
-        if ((cnt = read(fd, (void*)string_rx, 13)) < 0)
+        unsigned char string_rx;
+        if ((cnt = read(fd, &string_rx, 1)) < 0)
         {
             perror("[C]: read\n");
             return -1;
@@ -75,7 +75,7 @@ int main(void)
         }
         else
         {
-            printf("[C]: received-> '%s'", string_rx);
+            printf("[C]: received-> '%c'\n", string_rx);
         }
     // }
 
