@@ -10,7 +10,7 @@
 #include <linux/i2c-dev.h>
 
 #define DEVID       (0x8A)
-#define BUFF_SIZE   (150)
+#define BUFF_SIZE   (16)
 
 int main(void)
 {
@@ -30,7 +30,7 @@ int main(void)
     }
 
     // reset read address
-    char write_buff[1] = { 0x00 };
+    char write_buff[1] = { 0x80 };
     if(write(i2c_fd, write_buff, 1) != 1) {
         perror("i2c - failed to reset read address\n");
         return -1;
