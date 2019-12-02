@@ -13,7 +13,7 @@ int main(void)
     struct termios options;
 
     // printf("Basic UART test\n");
-    printf("TEST WITH TIVA - RECEIVE TIVA DATA\n");
+    printf("TEST WITH TIVA - RECEIVE TIVA DATA - 1\n");
 
     if ((fd = open("/dev/ttyO1", O_RDWR | O_NOCTTY)) < 0)
     {
@@ -57,25 +57,30 @@ int main(void)
     // else                // child
     // {
         // let parent transmit the string before receiving
-        usleep(10000000);
+        // usleep(10000000);
 
-        printf("[C]: Receiving string\n");
+        printf("[C]: Receiving characters\n");
 
         // receive string
-        unsigned char string_rx;
-        if ((cnt = read(fd, &string_rx, 1)) < 0)
-        {
-            perror("[C]: read\n");
-            return -1;
-        }
+        // unsigned char string_rx;
+        unsigned char char_rx;
 
-        if(cnt == 0)
+        while(1)
         {
-            printf("[C]: no data to read!\n");
-        }
-        else
-        {
-            printf("[C]: received-> '%c'\n", string_rx);
+            if ((cnt = read(fd, &char_rx, 1)) < 0)
+            {
+                perror("[C]: read\n");
+                return -1;
+            }
+
+            if(cnt == 0)
+            {
+                printf("[C]: no data to read!\n");
+            }
+            else
+            {
+                printf("[C]: received-> '%c'\n", char_rx);
+            }
         }
     // }
 
