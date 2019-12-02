@@ -33,15 +33,15 @@ int main(void)
 
     options.c_cflag |= (CLOCAL | CS8);
     options.c_iflag &= ~(ISTRIP | IXON | INLCR | PARMRK | ICRNL | IGNBRK);
-    options.c_oflag &=  ~(OPOST);
-    options.c_lflag &= ~(ICANON | ECHO | ECHONL | ISIG | IEXTEN);
+    options.c_oflag &= ~(OPOST);
+    options.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
 
     tcsetattr(fd, TCSAFLUSH, &options);
     
     printf("Basic UART test\n");
 
-    if(fork() == 0)     // parent
-    {
+    // if(fork() == 0)     // parent
+    // {
         printf("[P]: Sending string\n");
 
         // send string
@@ -52,9 +52,9 @@ int main(void)
             perror("[P]: write\n");
             return -1;
         }
-    }
-    else                // child
-    {
+    // }
+    // else                // child
+    // {
         // let parent transmit the string before receiving
         usleep(100000);
 
@@ -76,7 +76,7 @@ int main(void)
         {
             printf("[C]: received-> '%s'", string_rx);
         }
-    }
+    // }
 
     close(fd);
 
