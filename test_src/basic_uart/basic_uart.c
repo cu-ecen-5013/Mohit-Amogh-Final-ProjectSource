@@ -72,28 +72,33 @@ int main(void)
         } test;
 
         printf("sizeof test = %ld\n", sizeof(test));
+        test.led_value = 1;
+        test.buzz_value = 2;
 
         while(1)
         {
             // if ((cnt = write(fd, &char_tx, 1)) < 0)
-            if ((cnt = read(fd, (void*)&test, sizeof(test))) < 0)
+            if ((cnt = write(fd, (void*)&test, sizeof(test))) < 0)
             {
-                perror("[C]: read\n");
+                perror("[C]: write\n");
                 return -1;
             }
 
-            // usleep(1000000);
+            test.led_value += 2;
+            test.buzz_value += 2;
 
-            if(cnt == 0)
-            {
-                printf("\n[C]: no data to read!\n");
-            }
-            else
-            {
-                printf("test.led_value = %u\n", test.led_value);
-                printf("test.buzz_value = %u\n", test.buzz_value);
-                // printf("[C]: received-> '%c'\n", char_rx);
-            }
+            usleep(1000000);
+
+            // if(cnt == 0)
+            // {
+            //     printf("\n[C]: no data to read!\n");
+            // }
+            // else
+            // {
+            //     printf("test.led_value = %u\n", test.led_value);
+            //     printf("test.buzz_value = %u\n", test.buzz_value);
+            //     // printf("[C]: received-> '%c'\n", char_rx);
+            // }
         }
     // }
 
