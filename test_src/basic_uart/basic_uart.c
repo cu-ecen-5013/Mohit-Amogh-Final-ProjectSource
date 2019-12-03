@@ -14,7 +14,7 @@ int main(void)
     struct termios options;
 
     // printf("Basic UART test\n");
-    printf("TEST WITH TIVA - RECEIVE TIVA DATA - 4\n");
+    printf("TEST WITH TIVA - RECEIVE TIVA DATA - 5\n");
 
     if ((fd = open("/dev/ttyO1", O_RDWR | O_NOCTTY)) < 0)
     {
@@ -90,8 +90,8 @@ int main(void)
             }
             else
             {
-                printf("test.led_value = %d\n", test.led_value);
-                printf("test.buzz_value = %d\n", test.buzz_value);
+                printf("test.led_value = %u\n", test.led_value);
+                printf("test.buzz_value = %u\n", test.buzz_value);
                 // printf("[C]: received-> '%c'\n", char_rx);
             }
         }
