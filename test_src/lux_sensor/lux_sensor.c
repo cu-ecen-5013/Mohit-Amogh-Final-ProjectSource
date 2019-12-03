@@ -45,7 +45,7 @@ int apds9301_write_reg_word(int file, unsigned char addr, unsigned char cmd_reg,
 
 int main(void)
 {
-    printf("APDS9301 Lux Sensor Test - 3\n");
+    printf("APDS9301 Lux Sensor Test - 4\n");
 
     int ret;
     int i2c_fd;
@@ -109,18 +109,17 @@ int main(void)
         printf("[APDS9301] CH0_DATA_LOW = 0x%02x\n", ch0_data[0]);
         printf("[APDS9301] CH0_DATA_HIGH = 0x%02x\n", ch0_data[1]);
 
-        printf("\n[APDS9301] Reading CH0 low byte\n");
+
+        printf("\n[APDS9301] Reading CH0 byte by byte\n");
         if((ret = apds9301_read_reg_byte(i2c_fd, APDS9301_SLAVE_ADDR, (APDS9301_CMD_REG | APDS9301_CH0_DATA_LOW), &ch0_data_low)) != 0) {
             perror("apds9301_read_reg_byte");
             return -1;
         }
-        printf("[APDS9301] CH0_DATA_LOW = 0x%02x\n", ch0_data_low);
-
-        printf("[APDS9301] Reading CH0 high byte\n");
         if((ret = apds9301_read_reg_byte(i2c_fd, APDS9301_SLAVE_ADDR, (APDS9301_CMD_REG | APDS9301_CH0_DATA_HIGH), &ch0_data_high)) != 0) {
             perror("apds9301_read_reg_byte");
             return -1;
         }
+        printf("[APDS9301] CH0_DATA_LOW = 0x%02x\n", ch0_data_low);
         printf("[APDS9301] CH0_DATA_HIGH = 0x%02x\n", ch0_data_high);
     // }
 
@@ -145,7 +144,7 @@ int apds9301_read_reg_byte(int file, unsigned char addr, unsigned char cmd_reg, 
 
     /* Set transaction segment 1 message - write command to APDS9301 */
     messages[0].addr  = addr;               // slave address
-    messages[0].flags = 0;                  // write bit
+    messages[0].flags = 0x00;               // write bit
     messages[0].len   = sizeof(cmd_reg);    // size of command buffer
     messages[0].buf   = &cmd_reg;           // command + address of register of interest
 
@@ -178,9 +177,9 @@ int apds9301_write_reg_byte(int file, unsigned char addr, unsigned char cmd_reg,
 
     /* Set transaction segment message - write command and data to APDS9301 */
     message.addr    = addr;                 // slave address
-    message.flags   = 0;                    // write bit
+    message.flags   = 0x00;                 // write bit
     message.len     = sizeof(wrbuff);       // size of write buffer
-    message.buf     = wrbuff;              // command + address of register of interest and data to be written
+    message.buf     = wrbuff;               // command + address of register of interest and data to be written
 
     /* Perform 2 writes transaction */
     packets.msgs    = &message;
@@ -202,7 +201,7 @@ int apds9301_read_reg_word(int file, unsigned char addr, unsigned char cmd_reg, 
 
     /* Set transaction segment 1 message - write command to APDS9301 */
     messages[0].addr  = addr;               // slave address
-    messages[0].flags = 0;                  // write bit
+    messages[0].flags = 0x00;               // write bit
     messages[0].len   = sizeof(cmd_reg);    // size of command buffer
     messages[0].buf   = &cmd_reg;           // command + address of register of interest
 
@@ -236,9 +235,9 @@ int apds9301_write_reg_word(int file, unsigned char addr, unsigned char cmd_reg,
 
     /* Set transaction segment message - write command and data to APDS9301 */
     message.addr    = addr;                 // slave address
-    message.flags   = 0;                    // write bit
+    message.flags   = 0x00;                 // write bit
     message.len     = sizeof(wrbuff);       // size of write buffer
-    message.buf     = wrbuff;              // command + address of register of interest and data to be written
+    message.buf     = wrbuff;               // command + address of register of interest and data to be written
 
     /* Perform 3 writes transaction */
     packets.msgs    = &message;
