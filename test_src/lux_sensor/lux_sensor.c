@@ -1,4 +1,7 @@
-/* I2C Lux sensor code */
+/* APDS9301 Lux Sensor Code */
+
+/* This code reads APDS9301 Lux Sensor ID register */
+
 /* References:
  * 1. Exploring BeagleBone by Derek Molloy 
  * 2. https://elinux.org/Interfacing_with_I2C_Devices
@@ -14,42 +17,60 @@
 #include <linux/i2c-dev.h>
 #include <errno.h>
 
-#define I2C_ADDR    (0x39)
-#define DEVID       (0x8A)
-#define BUFF_SIZE   (1)
+#define I2C_ADAPTER_NR          (2)
+
+#define APDS9301_READ_BIT       (1)
+#define APDS9301_WRITE_BIT      (0)
+
+#define APDS9301_SLAVE_ADDR     (0x39)
+#define APDS9301_CMD_REG        (0x80)
+#define APDS9301_ID_REG         (0x0A | APDS9301_CMD_REG)
+
+#define APDS9301_SLAVE_READ     ((APDS9301_SLAVE_ADDR << 1) | APDS9301_READ_BIT)
+#define APDS9301_SLAVE_WRITE    ((APDS9301_SLAVE_ADDR << 1) | APDS9301_WRITE_BIT)
+
 
 int main(void)
 {
+    printf("APDS9301 Lux Sensor Test\n");
+
     int i2c_fd;
-    printf("APDS-9301 Lux Sensor Test\n");
+    char filename[20];
     
     // open i2c file
-    if((i2c_fd = open("/dev/i2c-2", O_RDWR)) < 0) {
-        perror("file open error\n");
+    snprintf(filename, 19, "/dev/i2c-%d", I2C_ADAPTER_NR);
+    if((i2c_fd = open(filename, O_RDWR)) < 0) {
+        perror("i2c - file open error");
         return -1;
     }
 
     // select slave address
-    if(ioctl(i2c_fd, I2C_SLAVE, I2C_ADDR) < 0) {
-        perror("i2c ioctl error\n");
+    if(ioctl(i2c_fd, I2C_SLAVE, APDS9301_SLAVE_ADDR) < 0) {
+        perror("i2c - ioctl error");
         return -1;
     }
 
     // reset read address
-    char write_buff[1] = { 0x8A };
-    if(write(i2c_fd, write_buff, 1) != 1) {
-        perror("failed resetting read address\n");
+    char write_buff[3] = { APDS9301_SLAVE_WRITE, APDS9301_ID_REG, APDS9301_SLAVE_READ };
+    if(write(i2c_fd, write_buff, 3) != 3) {
+        perror("i2c - failed read initialization");
         return -1;
     }
 
-    // read i2c-2 registers
-    char read_buff[BUFF_SIZE];
-    if(read(i2c_fd, read_buff, BUFF_SIZE) != BUFF_SIZE) {
-        perror("failed to read in buffer\n");
+    // read i2c register
+    char read_byte;
+    if(read(i2c_fd, &read_byte, 1) != 1) {
+        perror("i2c - failed to read in buffer");
         return -1;
     }
 
-    printf("Lux Sensor Device ID: 0x%02x\n", read_buff[DEVID]);
-    close(i2c_fd);
+    printf("Lux Sensor Device ID: 0x%02x\n", read_byte);
+
+    // close i2c file
+    if(close(i2c_fd) < 0) {
+        perror("i2c - file close error");
+        return -1;
+    }
+
     return 0;
 }
