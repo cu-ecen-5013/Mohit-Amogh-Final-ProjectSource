@@ -32,7 +32,7 @@
 
 int main(void)
 {
-    printf("APDS9301 Lux Sensor Test\n");
+    printf("APDS9301 Lux Sensor Test - 1\n");
 
     int i2c_fd;
     char filename[20];
@@ -50,10 +50,11 @@ int main(void)
         return -1;
     }
 
+#if 0
     // reset read address
     char write_buff[3] = { APDS9301_SLAVE_WRITE, APDS9301_ID_REG, APDS9301_SLAVE_READ };
     if(write(i2c_fd, write_buff, 3) != 3) {
-        perror("i2c - failed read initialization");
+        perror("i2c - read transaction failed");
         return -1;
     }
 
@@ -62,9 +63,21 @@ int main(void)
     if(read(i2c_fd, &read_byte, 1) != 1) {
         perror("i2c - failed to read in buffer");
         return -1;
+    } else {
+        printf("Lux Sensor Device ID: 0x%02x\n", read_byte);
+    }
+#else
+    // read all address
+    char read_buff[150];
+    if(read(i2c_fd, read_buff, 150) != 150) {
+        perror("i2c - read failed");
+        return -1;
+    } else {
+        for(int i=0; i<150; i++)
+            printf("0x%02x\n", read_buff[i]);
     }
 
-    printf("Lux Sensor Device ID: 0x%02x\n", read_byte);
+#endif
 
     // close i2c file
     if(close(i2c_fd) < 0) {
