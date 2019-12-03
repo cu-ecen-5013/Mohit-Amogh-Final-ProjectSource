@@ -24,7 +24,8 @@
 
 #define APDS9301_SLAVE_ADDR     (0x39)
 #define APDS9301_CMD_REG        (0x80)
-#define APDS9301_ID_REG         (0x0A | APDS9301_CMD_REG)
+#define APDS9301_ID_REG         (0x0A)
+// #define APDS9301_ID_REG         (0x0A | APDS9301_CMD_REG)
 
 #define APDS9301_SLAVE_READ     ((APDS9301_SLAVE_ADDR << 1) | APDS9301_READ_BIT)
 #define APDS9301_SLAVE_WRITE    ((APDS9301_SLAVE_ADDR << 1) | APDS9301_WRITE_BIT)
@@ -32,7 +33,7 @@
 
 int main(void)
 {
-    printf("APDS9301 Lux Sensor Test - 1\n");
+    printf("APDS9301 Lux Sensor Test - 2\n");
 
     int i2c_fd;
     char filename[20];
@@ -66,7 +67,37 @@ int main(void)
     } else {
         printf("Lux Sensor Device ID: 0x%02x\n", read_byte);
     }
-#else
+#endif
+
+#if 1
+    unsigned char in_buff, out_buff;
+    struct i2c_rdwr_ioctl_data packets;
+    struct i2c_msg messages[2];
+
+    out_buff = APDS9301_CMD_REG | APDS9301_ID_REG;
+
+    messages[0].addr  = APDS9301_SLAVE_ADDR;
+    messages[0].flags = 0;
+    messages[0].len   = sizeof(out_buff);
+    messages[0].buf   = &out_buff;
+
+    messages[1].addr  = APDS9301_SLAVE_ADDR;
+    messages[1].flags = I2C_M_RD;
+    messages[1].len   = sizeof(in_buff);
+    messages[1].buf   = &in_buff;
+
+    packets.msgs      = messages;
+    packets.nmsgs     = 2;
+    if(ioctl(i2c_fd, I2C_RDWR, &packets) < 0) {
+        perror("i2c - ioctl rdwr");
+        return -1;
+    }
+
+    printf("Lux Sensor Device ID: 0x%02x\n", in_buff);
+
+#endif
+
+#if 0
     // read all address
     char read_buff[150];
     if(read(i2c_fd, read_buff, 150) != 150) {
@@ -76,7 +107,6 @@ int main(void)
         for(int i=0; i<150; i++)
             printf("0x%02x\n", read_buff[i]);
     }
-
 #endif
 
     // close i2c file
