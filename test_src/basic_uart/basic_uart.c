@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <termios.h>
+#include <stdint.h>
 
 int main(void)
 {
@@ -65,10 +66,17 @@ int main(void)
         unsigned char char_rx;
         // unsigned char char_tx = '5';
 
+        struct sensor {
+            uint8_t led_value;
+            uint8_t buzz_value;
+        } test;
+
+        printf("sizeof test = %ld\n", sizeof(test));
+
         while(1)
         {
             // if ((cnt = write(fd, &char_tx, 1)) < 0)
-            if ((cnt = read(fd, &char_rx, 1)) < 0)
+            if ((cnt = read(fd, (void*)&test, sizeof(test))) < 0)
             {
                 perror("[C]: read\n");
                 return -1;
@@ -82,7 +90,8 @@ int main(void)
             }
             else
             {
-                printf("%c", char_rx);
+                printf("test.led_value = %d\n", test.led_value);
+                printf("test.buzz_value = %d\n", test.buzz_value);
                 // printf("[C]: received-> '%c'\n", char_rx);
             }
         }
