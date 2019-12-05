@@ -7,18 +7,23 @@ ifeq ($(CCFLAGS),)
 endif
 
 ifeq ($(LDFLAGS),)
-	LDFLAGS = -pthread -lgcc_s -lrt -lm
+	LDFLAGS = -pthread -lgcc_s -lrt
 endif
 
 ifeq ($(OPTFLAGS),)
 	OPTFLAGS = -O0
 endif
 
-all: basic_uart
+all: led_blink
 
-basic_uart: test_src/basic_uart/basic_uart.c
-	$(CC) $(CCFLAGS) $(OPTFLAGS) -o test_src/basic_uart/basic_uart test_src/basic_uart/basic_uart.c $(LDFLAGS)
+led_blink: led_blink.o gpio.o
+	$(CC) $(CCFLAGS) led_blink.o gpio.o -o led_blink
+
+led_blink.o: test_src/led_blink/led_blink.c test_src/led_blink/gpio.h
+	$(CC) $(CCFLAGS) -c test_src/led_blink/led_blink.c
+
+gpio.o: test_src/led_blink/gpio.c test_src/led_blink/gpio.h
+	$(CC) $(CCFLAGS) -c test_src/led_blink/gpio.c
 
 clean:
-	-rm -f *.o *.d test_src/basic_uart/basic_uart/*.o test_src/basic_uart/basic_uart/*.d
-	-rm -f test_src/basic_uart/basic_uart
+	-rm -f *.o led_blink
