@@ -1,6 +1,8 @@
 /* Blinks LED for a minute at 1 second intervals */
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include <errno.h>
 #include "gpio.h"
 
