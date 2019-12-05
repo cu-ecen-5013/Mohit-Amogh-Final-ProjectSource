@@ -7,18 +7,23 @@ ifeq ($(CCFLAGS),)
 endif
 
 ifeq ($(LDFLAGS),)
-	LDFLAGS = -pthread -lgcc_s -lrt -lm
+	LDFLAGS = -pthread -lgcc_s -lrt
 endif
 
 ifeq ($(OPTFLAGS),)
 	OPTFLAGS = -O0
 endif
 
-all: lux_sensor
+all: cap_sensor
 
-lux_sensor: test_src/lux_sensor/lux_sensor.c
-	$(CC) $(CCFLAGS) $(OPTFLAGS) -o test_src/lux_sensor/lux_sensor test_src/lux_sensor/lux_sensor.c $(LDFLAGS)
+cap_sensor: cap_sensor.o gpio.o
+	$(CC) $(CCFLAGS) cap_sensor.o gpio.o -o cap_sensor
+
+cap_sensor.o: test_src/cap_sensor/cap_sensor.c test_src/cap_sensor/gpio.h
+	$(CC) $(CCFLAGS) -c test_src/cap_sensor/cap_sensor.c
+
+gpio.o: test_src/cap_sensor/gpio.c test_src/cap_sensor/gpio.h
+	$(CC) $(CCFLAGS) -c test_src/cap_sensor/gpio.c
 
 clean:
-	-rm -f *.o *.d test_src/lux_sensor/lux_sensor/*.o test_src/lux_sensor/lux_sensor/*.d
-	-rm -f test_src/lux_sensor/lux_sensor
+	-rm -f *.o cap_sensor

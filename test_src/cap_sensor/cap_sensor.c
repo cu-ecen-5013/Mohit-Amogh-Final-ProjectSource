@@ -13,7 +13,7 @@
 #define OFF             (0)
 
 #define BB_LED_GPIO     (53)
-#define CAP_LED_GPIO    (66)
+// #define CAP_LED_GPIO    (66)
 #define CAP_DATA_GPIO   (69)
 
 int main(void)
@@ -31,11 +31,11 @@ int main(void)
         perror("gpio_export");
         exit(1);
     }
-    if((ret = gpio_export(CAP_LED_GPIO)) != 0)
-    {
-        perror("gpio_export");
-        exit(1);
-    }
+    // if((ret = gpio_export(CAP_LED_GPIO)) != 0)
+    // {
+    //     perror("gpio_export");
+    //     exit(1);
+    // }
     if((ret = gpio_export(CAP_DATA_GPIO)) != 0)
     {
         perror("gpio_export");
@@ -48,11 +48,11 @@ int main(void)
         perror("gpio_set_dir");
         exit(1);
     }
-    if((ret = gpio_set_dir(CAP_LED_GPIO, GPIO_DIR_OUTPUT)) != 0)
-    {
-        perror("gpio_set_dir");
-        exit(1);
-    }
+    // if((ret = gpio_set_dir(CAP_LED_GPIO, GPIO_DIR_OUTPUT)) != 0)
+    // {
+    //     perror("gpio_set_dir");
+    //     exit(1);
+    // }
     if((ret = gpio_set_dir(CAP_DATA_GPIO, GPIO_DIR_INPUT)) != 0)
     {
         perror("gpio_set_dir");
@@ -71,6 +71,8 @@ int main(void)
 
         if(cap_data == 1)
         {
+            printf("Touched\n");
+            
             // beaglebone led on
             if((ret = gpio_set_value(BB_LED_GPIO, ON)) != 0)
             {
@@ -78,15 +80,17 @@ int main(void)
                 exit(1);
             }
             
-            // capacitive sensor led on
-            if((ret = gpio_set_value(CAP_LED_GPIO, ON)) != 0)
-            {
-                perror("gpio_set_value");
-                exit(1);
-            }
+            // // capacitive sensor led on
+            // if((ret = gpio_set_value(CAP_LED_GPIO, ON)) != 0)
+            // {
+            //     perror("gpio_set_value");
+            //     exit(1);
+            // }
         }
         else
         {
+            printf("Not Touched\n");
+            
             // beaglebone led off
             if((ret = gpio_set_value(BB_LED_GPIO, OFF)) != 0)
             {
@@ -94,16 +98,16 @@ int main(void)
                 exit(1);
             }
             
-            // capacitive sensor led off
-            if((ret = gpio_set_value(CAP_LED_GPIO, OFF)) != 0)
-            {
-                perror("gpio_set_value");
-                exit(1);
-            } 
+            // // capacitive sensor led off
+            // if((ret = gpio_set_value(CAP_LED_GPIO, OFF)) != 0)
+            // {
+            //     perror("gpio_set_value");
+            //     exit(1);
+            // } 
         }
        
-        // sleep for 10 ms
-        usleep(10000);
+        // sleep for 500 ms
+        usleep(500000);
     }
    
     // unexport all exported pins
@@ -112,11 +116,11 @@ int main(void)
         perror("gpio_unexport");
         exit(1);
     }
-    if((ret = gpio_unexport(CAP_LED_GPIO)) != 0)
-    {
-        perror("gpio_unexport");
-        exit(1);
-    }
+    // if((ret = gpio_unexport(CAP_LED_GPIO)) != 0)
+    // {
+    //     perror("gpio_unexport");
+    //     exit(1);
+    // }
     if((ret = gpio_unexport(CAP_DATA_GPIO)) != 0)
     {
         perror("gpio_unexport");
