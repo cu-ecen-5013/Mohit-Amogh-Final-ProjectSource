@@ -14,16 +14,19 @@ ifeq ($(OPTFLAGS),)
 	OPTFLAGS = -O0
 endif
 
-all: led_blink
+ifeq ($(SRC),)
+	SRC := main.c
+endif
 
-led_blink: led_blink.o gpio.o
-	$(CC) $(CCFLAGS) led_blink.o gpio.o -o led_blink
+ifeq ($(OBJ),)
+	OBJ := $(SRC:.c=.o)
+endif
 
-led_blink.o: test_src/led_blink/led_blink.c test_src/led_blink/gpio.h
-	$(CC) $(CCFLAGS) -c test_src/led_blink/led_blink.c
+vpath %.c src/
+vpath %.h inc/
 
-gpio.o: test_src/led_blink/gpio.c test_src/led_blink/gpio.h
-	$(CC) $(CCFLAGS) -c test_src/led_blink/gpio.c
+bbb_main: $(OBJ)
+	$(CC) -o bbb_main $(OBJ) $(CCFLAGS) $(OPTFLAGS) $(LDFLAGS)
 
 clean:
-	-rm -f *.o led_blink
+	-rm -f *.o bbb_main
