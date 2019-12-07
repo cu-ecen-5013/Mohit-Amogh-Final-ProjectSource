@@ -1,5 +1,8 @@
-#define NUM_OF_TASKS    (4)
+#define NUM_OF_TASKS     (4)
 
+/* Shared memory defines */
+#define PSHM_1_NAME      ("/pshm_1")
+#define PSHM_2_NAME      ("/pshm_2")
 
 #define AESD_DEBUG 1  //Remove comment on this line to enable debug
 
@@ -16,10 +19,11 @@
 #  define PDEBUG(fmt, args...) /* not debugging: nothing */
 #endif
 
+enum { LUX = 1, 
+       CAP };
 
-
-typedef struct
-{
-    enum {LUX = 1, CAP} sensor;
-    uint8_t data; 
-} FOO;
+/* Shared memory segment data */
+typedef struct {
+     uint8_t sensor; 
+     uint8_t data;
+} SHMSEG;
