@@ -15,7 +15,6 @@
 #include <sys/mman.h>
 #include <syslog.h>
 #include "../inc/main.h"
-#include "../inc/lux_task.h"
 
 
 /* Function declarations */
@@ -155,13 +154,13 @@ void lux_task(void)
     if ((lux_sem = sem_open(lux_sem_name, 0, 0600, 0)) < 0) { error("[LUX ] sem_open"); }
 
     /* Initialize lux sensor */
-    // if(lux_sensor_init() < 0) { error("[LUX ] Initialization Failure"); }
+    if(lux_sensor_init() < 0) { error("[LUX ] Initialization Failure"); }
 
     while(1)
     {
         /* Take sensor readings */
-        // shmseg_lux_ptr->data = get_lux_value();
-        shmseg_lux_ptr->data = 45;
+        shmseg_lux_ptr->data = get_lux_value();
+        // shmseg_lux_ptr->data = 45;
 
         /* Write data to shared memory */
         memcpy((void*)(&pshm_1_base[LUX]), (void*)shmseg_lux_ptr, sizeof(SHMSEG));

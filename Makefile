@@ -14,19 +14,10 @@ ifeq ($(OPTFLAGS),)
 	OPTFLAGS = -O0
 endif
 
-ifeq ($(SRC),)
-	SRC := main.c
-endif
+all: bbb_main
 
-ifeq ($(OBJ),)
-	OBJ := $(SRC:.c=.o)
-endif
-
-vpath %.c src/
-vpath %.h inc/
-
-bbb_main: $(OBJ)
-	$(CC) -o bbb_main $(OBJ) $(CCFLAGS) $(OPTFLAGS) $(LDFLAGS)
+bbb_main: src/main.c inc/main.h
+	$(CC) $(CCFLAGS) $(OPTFLAGS) -o bbb_main src/main.c $(LDFLAGS)
 
 clean:
 	-rm -f *.o bbb_main
