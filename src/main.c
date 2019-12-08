@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <fcntl.h>
+#include <time.h>
 #include <semaphore.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -88,6 +89,10 @@ int main(void)
     if (sem_close(sem_des) < 0) { error("[MAIN] sem_close"); }
     if ((sem_des = sem_open(log_sem_name, O_CREAT, 0600, 0)) < 0) { error("[MAIN] sem_open"); }
     if (sem_close(sem_des) < 0) { error("[MAIN] sem_close"); }
+    if ((sem_des = sem_open(urx_sem_1_name, O_CREAT, 0600, 0)) < 0) { error("[MAIN] sem_open"); }
+    if (sem_close(sem_des) < 0) { error("[MAIN] sem_close"); }
+    if ((sem_des = sem_open(urx_sem_2_name, O_CREAT, 0600, 0)) < 0) { error("[MAIN] sem_open"); }
+    if (sem_close(sem_des) < 0) { error("[MAIN] sem_close"); }
 
     /* Create each task using fork */
     syslog(LOG_DEBUG, "[MAIN] Starting Tasks\n");
@@ -128,6 +133,8 @@ int main(void)
     if (sem_unlink(cap_sem_name) < 0) { error("[MAIN] sem_unlink"); }
     if (sem_unlink(act_sem_name) < 0) { error("[MAIN] sem_unlink"); }
     if (sem_unlink(log_sem_name) < 0) { error("[MAIN] sem_unlink"); }
+    if (sem_unlink(urx_sem_1_name) < 0) { error("[MAIN] sem_unlink"); }
+    if (sem_unlink(urx_sem_2_name) < 0) { error("[MAIN] sem_unlink"); }
 
     /* Unlink shared memory */
     if (shm_unlink(PSHM_1_NAME) < 0) { error("[MAIN] shm_unlink"); }
@@ -207,6 +214,7 @@ void lux_task(void)
     SHMSEG_1 *pshm_1_base = NULL;
     shmseg_lux_ptr->sensor = LUX;
     int ret;
+    int iteration;
 
     /* Open shared memory */
     if ((pshm_1_fd = shm_open(PSHM_1_NAME,                                      /* name of object */
@@ -234,18 +242,22 @@ void lux_task(void)
 
     while(1)
     {
+        iteration++;
+
         /* Take sensor readings */
         ret = get_lux_value();
         if (ret < 0) { error("[LUX ] Value read failure"); }
         else {
             shmseg_lux_ptr->data = (uint8_t)ret;
+
+            /* Write data to shared memory */
+            memcpy((void*)(&pshm_1_base[LUX]), (void*)shmseg_lux_ptr, sizeof(SHMSEG_1));
+
+            /* Post semaphore */
+            sem_post(lux_sem);
         }
 
-        /* Write data to shared memory */
-        memcpy((void*)(&pshm_1_base[LUX]), (void*)shmseg_lux_ptr, sizeof(SHMSEG_1));
-
-        /* Post semaphore */
-        sem_post(lux_sem);
+        syslog(LOG_DEBUG, "[LUX ] [%d] lux reading received = %d\n", iteration, ret);
 
         /* Sleep - period of measurement */
         sleep(2);
@@ -274,6 +286,7 @@ void cap_task(void)
     SHMSEG_1 *pshm_1_base = NULL;
     shmseg_cap_ptr->sensor = CAP;
     int ret;
+    int iteration;
 
     /* Open shared memory */
     if ((pshm_1_fd = shm_open(PSHM_1_NAME,                                      /* name of object */
@@ -301,18 +314,21 @@ void cap_task(void)
 
     while(1)
     {
+        iteration++;
         /* Take sensor readings */
         ret = get_cap_value();
         if (ret < 0) { error("[CAP ] Value read failure"); }
         else {
             shmseg_cap_ptr->data = (uint8_t)ret;
+
+            /* Write data to shared memory */
+            memcpy((void*)(&pshm_1_base[CAP]), (void*)shmseg_cap_ptr, sizeof(SHMSEG_1));
+
+            /* Post semaphore */
+            sem_post(cap_sem);
         }
 
-        /* Write data to shared memory */
-        memcpy((void*)(&pshm_1_base[CAP]), (void*)shmseg_cap_ptr, sizeof(SHMSEG_1));
-
-        /* Post semaphore */
-        sem_post(cap_sem);
+        syslog(LOG_DEBUG, "[CAP ] [%d] cap reading received = %d\n", iteration, ret);
 
         /* Sleep - period of measurement */
         sleep(2);
@@ -342,9 +358,10 @@ void utx_task(void)
     SHMSEG_1 shmseg_utx;
     SHMSEG_1 *shmseg_utx_ptr = &shmseg_utx;
     SHMSEG_1 *pshm_1_base = NULL;
-    struct timespec cap_timeout = { 0, 10000 };     // 10 ms timeout
+    struct timespec ts;
     int ret;
     int cnt;
+    int iteration;
 
     /* Open shared memory */
     if ((pshm_1_fd = shm_open(PSHM_1_NAME,                                      /* name of object */
@@ -370,6 +387,8 @@ void utx_task(void)
 
     while(1)
     {
+        iteration++;
+
         /* Wait for new lux sensor data */
         ret = sem_trywait(lux_sem);
         
@@ -378,22 +397,29 @@ void utx_task(void)
         {
             /* Read lux sensor data */
             memcpy((void*)shmseg_utx_ptr, (void*)(&pshm_1_base[LUX]), sizeof(SHMSEG_1));
-            PDEBUG("[UTX ] shmseg_lux.sensor = %d\n", shmseg_utx.sensor);
-            PDEBUG("[UTX ] shmseg_lux.data = %d\n", shmseg_utx.data);
+            syslog(LOG_DEBUG, "[UTX ] [%d] shmseg_lux.sensor = %d\n", iteration, shmseg_utx.sensor);
+            syslog(LOG_DEBUG, "[UTX ] [%d] shmseg_lux.data = %d\n", iteration, shmseg_utx.data);
+            PDEBUG("[UTX ] [%d] shmseg_lux.sensor = %d\n", iteration, shmseg_utx.sensor);
+            PDEBUG("[UTX ] [%d] shmseg_lux.data = %d\n", iteration, shmseg_utx.data);
 
             /* Transmit data to TIVA */
             if ((cnt = write(uart_fd, shmseg_utx_ptr, sizeof(SHMSEG_1))) < 0) { error("[UTX ] write"); }
         }
 
         /* Wait for new capacitive sensor data - with 10 ms timeout */
-        ret = sem_timedwait(cap_sem, &cap_timeout);
-
-        if (ret == 0)
+        // if (clock_gettime(CLOCK_REALTIME, &ts) == -1) { error("[UTX ] clock_gettime"); }
+        // ts.tv_nsec += 50000000;     // 50 ms timeout
+        // ts.tv_sec += ts.tv_nsec / 1000000000;
+        // ts.tv_nsec %= 1000000000;
+        // if (sem_timedwait(cap_sem, &ts) == 0)
+        if (sem_wait(cap_sem) == 0)
         {
             /* Read capacitive sensor data */
             memcpy((void*)shmseg_utx_ptr, (void*)(&pshm_1_base[CAP]), sizeof(SHMSEG_1));
-            PDEBUG("[UTX ] shmseg_cap.sensor = %d\n", shmseg_utx.sensor);
-            PDEBUG("[UTX ] shmseg_cap.data = %d\n", shmseg_utx.data);
+            syslog(LOG_DEBUG, "[UTX ] [%d] shmseg_cap.sensor = %d\n", iteration, shmseg_utx.sensor);
+            syslog(LOG_DEBUG, "[UTX ] [%d] shmseg_cap.data = %d\n", iteration, shmseg_utx.data);
+            PDEBUG("[UTX ] [%d] shmseg_cap.sensor = %d\n", iteration, shmseg_utx.sensor);
+            PDEBUG("[UTX ] [%d] shmseg_cap.data = %d\n", iteration, shmseg_utx.data);
 
             /* Transmit data to TIVA */
             if ((cnt = write(uart_fd, shmseg_utx_ptr, sizeof(SHMSEG_1))) < 0) { error("[UTX ] write"); }
@@ -414,16 +440,18 @@ void utx_task(void)
  * Producer 1 for Shared Memory 2 */
 void urx_task(void)
 {
-    syslog(LOG_DEBUG, "[LOG ] Task Started - PID %ld\n", (long)getpid());
-    PDEBUG("[LOG ] Task Started - PID %ld\n", (long)getpid());
+    syslog(LOG_DEBUG, "[URX ] Task Started - PID %ld\n", (long)getpid());
+    PDEBUG("[URX ] Task Started - PID %ld\n", (long)getpid());
 
     int pshm_2_fd;
-    sem_t *act_sem, *log_sem;
+    sem_t *act_sem, *log_sem, *urx_sem_1, *urx_sem_2;
     SHMSEG_2 shmseg_urx;
     SHMSEG_2 *shmseg_urx_ptr = &shmseg_urx;
     SHMSEG_2 *pshm_2_base = NULL;
 
+    int iteration = 0;
     int cnt;
+    int ret;
 
     /* Open shared memory */
     if ((pshm_2_fd = shm_open(PSHM_2_NAME,                                      /* name of object */
@@ -446,13 +474,29 @@ void urx_task(void)
     /* Open the semaphore */
     if ((act_sem = sem_open(act_sem_name, 0, 0600, 0)) < 0) { error("[URX ] sem_open"); }
     if ((log_sem = sem_open(log_sem_name, 0, 0600, 0)) < 0) { error("[URX ] sem_open"); }
+    if ((urx_sem_1 = sem_open(urx_sem_1_name, 0, 0600, 0)) < 0) { error("[URX ] sem_open"); }
+    // if ((urx_sem_2 = sem_open(urx_sem_2_name, 0, 0600, 1)) < 0) { error("[URX ] sem_open"); }
+
+    sem_post(urx_sem_1);
+    sem_post(urx_sem_1);
 
     while(1)
-    {
+    {        
+        iteration++;
+        
         /* Receive data from TIVA */
-        if ((cnt = read(uart_fd, shmseg_urx_ptr, sizeof(SHMSEG_2))) < 0) { error("[URX ] read"); }
-        PDEBUG("[URX ] shmseg_urx.sensor = %d\n", shmseg_urx.actuator);
-        PDEBUG("[URX ] shmseg_urx.data = %d\n", shmseg_urx.value);
+        if ((cnt = read(uart_fd, shmseg_urx_ptr, sizeof(SHMSEG_2))) < 0) { error("[URX ] [%d] read"); }
+        syslog(LOG_DEBUG, "[URX ] [%d] cnt = %d\n", iteration, cnt);
+        syslog(LOG_DEBUG, "[URX ] [%d] shmseg_urx.actuator = %d\n", iteration, shmseg_urx.actuator);
+        syslog(LOG_DEBUG, "[URX ] [%d] shmseg_urx.value = %d\n", iteration, shmseg_urx.value);
+        PDEBUG("[URX ] [%d] shmseg_urx.actuator = %d\n", iteration, shmseg_urx.actuator);
+        PDEBUG("[URX ] [%d] shmseg_urx.value = %d\n", iteration, shmseg_urx.value);
+
+        /* Wait for logger task and actuator task to read new data in shared memory */
+        // if (sem_wait(urx_sem_1) < 0) { error("[URX] [%d] sem_wait"); }
+        sem_wait(urx_sem_1);
+        sem_wait(urx_sem_1);
+        // sem_wait(urx_sem_2);
 
         /* Write data to shared memory */
         memcpy((void*)pshm_2_base, (void*)shmseg_urx_ptr, sizeof(SHMSEG_2));
@@ -468,6 +512,8 @@ void urx_task(void)
     /* Close the semaphore */
     if (sem_close(act_sem) < 0) { error("[UTX ] sem_close"); }
     if (sem_close(log_sem) < 0) { error("[UTX ] sem_close"); }
+    if (sem_close(urx_sem_1) < 0) { error("[UTX ] sem_close"); }
+    // if (sem_close(urx_sem_2) < 0) { error("[UTX ] sem_close"); }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -480,11 +526,12 @@ void act_task(void)
     PDEBUG("[ACT ] Task Started - PID %ld\n", (long)getpid());
 
     int pshm_2_fd;
-    sem_t *act_sem;
+    sem_t *act_sem, *urx_sem_1;
     SHMSEG_2 shmseg_act;
     SHMSEG_2 *shmseg_act_ptr = &shmseg_act;
     SHMSEG_2 *pshm_2_base = NULL;
     // int ret;
+    int iteration;
 
     /* Open shared memory */
     if ((pshm_2_fd = shm_open(PSHM_2_NAME,                                      /* name of object */
@@ -506,19 +553,25 @@ void act_task(void)
 
     /* Open the semaphore */
     if ((act_sem = sem_open(act_sem_name, 0, 0600, 0)) < 0) { error("[ACT ] sem_open"); }
+    if ((urx_sem_1 = sem_open(urx_sem_1_name, 0, 0600, 0)) < 0) { error("[ACT ] sem_open"); }
 
     /* Initialize actuators */
     if (actuators_init() < 0) { error("[ACT ] Initialization Failure"); }
 
     while(1)
     {
+        iteration++;
+
         /* Wait for new actuator data */
         sem_wait(act_sem);
 
         /* Read data from shared memory */
         memcpy((void*)shmseg_act_ptr, (void*)(pshm_2_base), sizeof(SHMSEG_2));
-        PDEBUG("[ACT ] shmseg_act.actuator = %d\n", shmseg_act.actuator);
-        PDEBUG("[ACT ] shmseg_act.value = %d\n", shmseg_act.value);
+
+        sem_post(urx_sem_1);
+
+        syslog(LOG_DEBUG, "[ACT ] [%d] shmseg_act.actuator = %d\n", iteration, shmseg_act.actuator);
+        syslog(LOG_DEBUG, "[ACT ] [%d] shmseg_act.value = %d\n", iteration, shmseg_act.value);
 
         /* Actuate */
         if (actuate(shmseg_act.actuator, shmseg_act.value) < 0) { error("[ACT ] Actuation Failure"); }
@@ -532,6 +585,7 @@ void act_task(void)
 
     /* Close the semaphore */
     if (sem_close(act_sem) < 0) { error("[ACT ] sem_close"); }
+    if (sem_close(urx_sem_1) < 0) { error("[ACT ] sem_close"); }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -544,11 +598,13 @@ void log_task(void)
     PDEBUG("[LOG ] Task Started - PID %ld\n", (long)getpid());
 
     int pshm_2_fd;
-    sem_t *log_sem;
+    sem_t *log_sem, *urx_sem_1;
     SHMSEG_2 shmseg_log;
     SHMSEG_2 *shmseg_log_ptr = &shmseg_log;
     SHMSEG_2 *pshm_2_base = NULL;
     // int ret;
+    int iteration;
+    int urx_sem_val;
 
     /* Open shared memory */
     if ((pshm_2_fd = shm_open(PSHM_2_NAME,                                      /* name of object */
@@ -570,16 +626,25 @@ void log_task(void)
 
     /* Open the semaphore */
     if ((log_sem = sem_open(log_sem_name, 0, 0600, 0)) < 0) { error("[LOG ] sem_open"); }
+    if ((urx_sem_1 = sem_open(urx_sem_1_name, 0, 0600, 0)) < 0) { error("[LOG ] sem_open"); }
 
     while(1)
     {
+        iteration++;
+
         /* Wait for new actuator data */
         sem_wait(log_sem);
 
+        sem_getvalue(urx_sem_1, &urx_sem_val);
+        syslog(LOG_DEBUG, "[LOG ] SEM_GETVALUE = %d\n", urx_sem_val);
+
         /* Read data from shared memory */
         memcpy((void*)shmseg_log_ptr, (void*)(pshm_2_base), sizeof(SHMSEG_2));
-        PDEBUG("[LOG ] shmseg_log.actuator = %d\n", shmseg_log.actuator);
-        PDEBUG("[LOG ] shmseg_log.value = %d\n", shmseg_log.value);
+
+        sem_post(urx_sem_1);
+
+        syslog(LOG_DEBUG, "[LOG ] [%d] shmseg_log.actuator = %d\n", iteration, shmseg_log.actuator);
+        syslog(LOG_DEBUG, "[LOG ] [%d] shmseg_log.value = %d\n", iteration, shmseg_log.value);
 
         /* Log actuator data */
         if (shmseg_log.actuator == LED)
@@ -595,6 +660,7 @@ void log_task(void)
 
     /* Close the semaphore */
     if (sem_close(log_sem) < 0) { error("[LOG ] sem_close"); }
+    if (sem_close(urx_sem_1) < 0) { error("[LOG ] sem_close"); }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -630,6 +696,8 @@ int actuators_init(void)
 
 int actuate(uint8_t actuator, uint8_t value)
 {
+    syslog(LOG_DEBUG, "[ACT ] [ACTUATE] actuator = %d\n", actuator);
+    syslog(LOG_DEBUG, "[ACT ] [ACTUATE] value = %d\n", value);
     PDEBUG("[ACT ] [ACTUATE] actuator = %d\n", actuator);
     PDEBUG("[ACT ] [ACTUATE] value = %d\n", value);
     
@@ -772,24 +840,24 @@ int lux_sensor_init(void)
         perror("[LUX ] [APDS9301] apds9301_read_reg_byte");
         return EXIT_FAILURE;
     }
-    printf("[LUX ] [APDS9301] CTRL reg value: 0x%02x\n", apds9301_power_state);
+    syslog(LOG_DEBUG, "[LUX ] [APDS9301] CTRL reg value: 0x%02x\n", apds9301_power_state);
     if(apds9301_power_state == 0x00) {
-        printf("[LUX ] [APDS9301] Powering up Lux sensor\n");
+        syslog(LOG_DEBUG, "[LUX ] [APDS9301] Powering up Lux sensor\n");
 
         if(apds9301_write_reg_byte(i2c_fd, APDS9301_SLAVE_ADDR, (APDS9301_CMD_REG | APDS9301_CTRL_REG), &apds9301_power_on) != 0) {
             perror("apds9301_write_reg_byte");
             return EXIT_FAILURE;
         }
     }
-    printf("[LUX ] [APDS9301] Lux sensor powered up\n");
+    syslog(LOG_DEBUG, "[LUX ] [APDS9301] Lux sensor powered up\n");
 
     /* Read device ID */
     if(apds9301_read_reg_byte(i2c_fd, APDS9301_SLAVE_ADDR, (APDS9301_CMD_REG | APDS9301_ID_REG), &apds9301_id) != 0) {
         perror("[LUX ] [APDS9301] apds9301_read_reg_byte");
         return EXIT_FAILURE;
     }
-    printf("[LUX ] [APDS9301] Lux Sensor Device ID: 0x%02x\n", apds9301_id);
-    printf("[LUX ] [APDS9301] Lux Sensor Initialized\n");
+    syslog(LOG_DEBUG, "[LUX ] [APDS9301] Lux Sensor Device ID: 0x%02x\n", apds9301_id);
+    syslog(LOG_DEBUG, "[LUX ] [APDS9301] Lux Sensor Initialized\n");
 
     return EXIT_SUCCESS;
 }
@@ -802,7 +870,7 @@ int get_lux_value(void)
     float lux_flt;
     int lux_ret;
     
-    PDEBUG("\n[LUX ] [APDS9301] Reading CH0 byte by byte\n");
+    syslog(LOG_DEBUG, "[LUX ] [APDS9301] Reading CH0 byte by byte\n");
     if(apds9301_read_reg_byte(i2c_fd, APDS9301_SLAVE_ADDR, (APDS9301_CMD_REG | APDS9301_CH0_DATA_LOW), &ch0_data_low) != 0) {
         perror("[LUX ] [APDS9301] apds9301_read_reg_byte");
         return EXIT_FAILURE;
@@ -811,13 +879,13 @@ int get_lux_value(void)
         perror("[LUX ] [APDS9301] apds9301_read_reg_byte");
         return EXIT_FAILURE;
     }
-    PDEBUG("[LUX ] [APDS9301] CH0_DATA_LOW  = 0x%02x\n", ch0_data_low);
-    PDEBUG("[LUX ] [APDS9301] CH0_DATA_HIGH = 0x%02x\n", ch0_data_high);
+    syslog(LOG_DEBUG, "[LUX ] [APDS9301] CH0_DATA_LOW  = 0x%02x\n", ch0_data_low);
+    syslog(LOG_DEBUG, "[LUX ] [APDS9301] CH0_DATA_HIGH = 0x%02x\n", ch0_data_high);
 
     ch0_data = (ch0_data_high << 8) | (ch0_data_low);
-    PDEBUG("[LUX ] [APDS9301] CH0_VALUE     = 0x%04x = %d\n", ch0_data, ch0_data);
+    syslog(LOG_DEBUG, "[LUX ] [APDS9301] CH0_VALUE     = 0x%04x = %d\n", ch0_data, ch0_data);
 
-    PDEBUG("[LUX ] [APDS9301] Reading CH1 byte by byte\n");
+    syslog(LOG_DEBUG, "[LUX ] [APDS9301] Reading CH1 byte by byte\n");
     if(apds9301_read_reg_byte(i2c_fd, APDS9301_SLAVE_ADDR, (APDS9301_CMD_REG | APDS9301_CH1_DATA_LOW), &ch1_data_low) != 0) {
         perror("[LUX ] [APDS9301] apds9301_read_reg_byte");
         return EXIT_FAILURE;
@@ -826,17 +894,17 @@ int get_lux_value(void)
         perror("[LUX ] [APDS9301] apds9301_read_reg_byte");
         return EXIT_FAILURE;
     }
-    PDEBUG("[LUX ] [APDS9301] CH1_DATA_LOW  = 0x%02x\n", ch1_data_low);
-    PDEBUG("[LUX ] [APDS9301] CH1_DATA_HIGH = 0x%02x\n", ch1_data_high);
+    syslog(LOG_DEBUG, "[LUX ] [APDS9301] CH1_DATA_LOW  = 0x%02x\n", ch1_data_low);
+    syslog(LOG_DEBUG, "[LUX ] [APDS9301] CH1_DATA_HIGH = 0x%02x\n", ch1_data_high);
 
     ch1_data = (ch1_data_high << 8) | (ch1_data_low);
-    PDEBUG("[LUX ] [APDS9301] CH1_VALUE     = 0x%04x = %d\n", ch1_data, ch1_data);
+    syslog(LOG_DEBUG, "[LUX ] [APDS9301] CH1_VALUE     = 0x%04x = %d\n", ch1_data, ch1_data);
 
     lux_flt = calculate_lux(ch0_data, ch1_data);
-    PDEBUG("[LUX ] [APDS9301] lux flt value = %0.2f\n", lux_flt);
+    syslog(LOG_DEBUG, "[LUX ] [APDS9301] lux flt value = %0.2f\n", lux_flt);
 
     lux_ret = (lux_flt < 255.00) ? (int)lux_flt : 255;
-    PDEBUG("[LUX ] [APDS9301] lux ret value = %d\n", lux_ret);
+    syslog(LOG_DEBUG, "[LUX ] [APDS9301] lux ret value = %d\n", lux_ret);
 
     return lux_ret;
 }

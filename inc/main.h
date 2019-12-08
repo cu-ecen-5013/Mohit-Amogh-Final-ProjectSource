@@ -46,6 +46,8 @@ char* cap_sem_name = "cap_sem";
 char* lux_sem_name = "lux_sem";
 char* act_sem_name = "act_sem";
 char* log_sem_name = "log_sem";
+char* urx_sem_1_name = "urx_sem_1";
+char* urx_sem_2_name = "urx_sem_2";
 
 /*** Lux sensor ***/
 #include <math.h>
