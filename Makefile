@@ -7,7 +7,7 @@ ifeq ($(CCFLAGS),)
 endif
 
 ifeq ($(LDFLAGS),)
-	LDFLAGS = -pthread -lgcc_s -lrt
+	LDFLAGS = -pthread -lgcc_s -lrt -lm
 endif
 
 ifeq ($(OPTFLAGS),)
