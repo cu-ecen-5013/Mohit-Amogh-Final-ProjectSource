@@ -35,6 +35,12 @@ int cap_sensor_deinit(void);
 
 void utx_task(void);
 void urx_task(void);
+
+void act_task(void);
+int actuators_init(void);
+int actuate(uint8_t actuator, uint8_t value);
+int actuators_deinit(void);
+
 void log_task(void);
 
 uint8_t uart_init(void);
@@ -47,6 +53,7 @@ int main(void)
                                    cap_task,
                                    utx_task,
                                    urx_task,
+                                   act_task,
                                    log_task };
     pid_t fork_pid[NUM_OF_TASKS];
     pid_t wait_pid;
@@ -66,16 +73,20 @@ int main(void)
 
     /* Set size of shared memory */
     if (ftruncate(pshm_1_fd, PSHM_1_NUM_OF_PROD * sizeof(SHMSEG_1)) < 0) { error("[MAIN] ftruncate"); }
-    if (ftruncate(pshm_2_fd, PSHM_2_NUM_OF_PROD * sizeof(SHMSEG_2)) < 0) { error("[MAIN] ftruncate"); }
+    if (ftruncate(pshm_2_fd, sizeof(SHMSEG_2)) < 0) { error("[MAIN] ftruncate"); }
 
     /* Close shared memory file descriptors */
     if (close(pshm_1_fd) < 0) { error("[MAIN] close"); }
     if (close(pshm_2_fd) < 0) { error("[MAIN] close"); }
 
-    /* Create semaphores for shared memory synchronization */
+    /* Create named semaphores for shared memory synchronization */
     if ((sem_des = sem_open(lux_sem_name, O_CREAT, 0600, 0)) < 0) { error("[MAIN] sem_open"); }
     if (sem_close(sem_des) < 0) { error("[MAIN] sem_close"); }
     if ((sem_des = sem_open(cap_sem_name, O_CREAT, 0600, 0)) < 0) { error("[MAIN] sem_open"); }
+    if (sem_close(sem_des) < 0) { error("[MAIN] sem_close"); }
+    if ((sem_des = sem_open(act_sem_name, O_CREAT, 0600, 0)) < 0) { error("[MAIN] sem_open"); }
+    if (sem_close(sem_des) < 0) { error("[MAIN] sem_close"); }
+    if ((sem_des = sem_open(log_sem_name, O_CREAT, 0600, 0)) < 0) { error("[MAIN] sem_open"); }
     if (sem_close(sem_des) < 0) { error("[MAIN] sem_close"); }
 
     /* Create each task using fork */
@@ -111,6 +122,12 @@ int main(void)
 
     /* De-initialize UART */
     if(uart_deinit() < 0) { error("[MAIN] uart deinit"); }
+
+    /* Unlink named semaphores */
+    if (sem_unlink(lux_sem_name) < 0) { error("[MAIN] sem_unlink"); }
+    if (sem_unlink(cap_sem_name) < 0) { error("[MAIN] sem_unlink"); }
+    if (sem_unlink(act_sem_name) < 0) { error("[MAIN] sem_unlink"); }
+    if (sem_unlink(log_sem_name) < 0) { error("[MAIN] sem_unlink"); }
 
     /* Unlink shared memory */
     if (shm_unlink(PSHM_1_NAME) < 0) { error("[MAIN] shm_unlink"); }
@@ -192,19 +209,19 @@ void lux_task(void)
     int ret;
 
     /* Open shared memory */
-    if ((pshm_1_fd = shm_open(PSHM_1_NAME,                                    /* name of object */
-                              O_RDWR,                                         /* open object for read-write access */
-                              0                                               /* mode - specified 0 for opening existing object */
+    if ((pshm_1_fd = shm_open(PSHM_1_NAME,                                      /* name of object */
+                              O_RDWR,                                           /* open object for read-write access */
+                              0                                                 /* mode - specified 0 for opening existing object */
                               )) < 0) { error("[LUX ] shm_open"); }
 
     /* Map shared memory segment to address space of process */
-    if ((pshm_1_base = (SHMSEG_1 *)mmap(NULL,                                 /* system chooses where to place shm in virtual address space */
-                                      PSHM_1_NUM_OF_PROD * sizeof(SHMSEG_1),  /* size of mapping */
-                                      PROT_READ|PROT_WRITE,                   /* read-write mapping */
-                                      MAP_SHARED,                             /* make modifications to shm visible to other processes */
-                                      pshm_1_fd,                              /* file descriptor specifying file to map */
-                                      0                                       /* offset of mapping in shm file */
-                                      )) < 0) { error("[LUX ] mmap"); }
+    if ((pshm_1_base = (SHMSEG_1 *)mmap(NULL,                                   /* system chooses where to place shm in virtual address space */
+                                        PSHM_1_NUM_OF_PROD * sizeof(SHMSEG_1),  /* size of mapping */
+                                        PROT_READ|PROT_WRITE,                   /* read-write mapping */
+                                        MAP_SHARED,                             /* make modifications to shm visible to other processes */
+                                        pshm_1_fd,                              /* file descriptor specifying file to map */
+                                        0                                       /* offset of mapping in shm file */
+                                        )) < 0) { error("[LUX ] mmap"); }
 
     /* Close shared memory file descriptor */
     if (close(pshm_1_fd) < 0) { error("[LUX ] close"); }
@@ -259,19 +276,19 @@ void cap_task(void)
     int ret;
 
     /* Open shared memory */
-    if ((pshm_1_fd = shm_open(PSHM_1_NAME,                                  /* name of object */
-                              O_RDWR,                                       /* open object for read-write access */
-                              0                                             /* mode - specified 0 for opening existing object */
+    if ((pshm_1_fd = shm_open(PSHM_1_NAME,                                      /* name of object */
+                              O_RDWR,                                           /* open object for read-write access */
+                              0                                                 /* mode - specified 0 for opening existing object */
                               )) < 0) { error("[CAP ] shm_open"); }
 
     /* Map shared memory segment to address space of process */
-    if ((pshm_1_base = (SHMSEG_1 *)mmap(NULL,                                 /* system chooses where to place shm in virtual address space */
-                                      PSHM_1_NUM_OF_PROD * sizeof(SHMSEG_1),  /* size of mapping */
-                                      PROT_READ|PROT_WRITE,                 /* read-write mapping */
-                                      MAP_SHARED,                           /* make modifications to shm visible to other processes */
-                                      pshm_1_fd,                            /* file descriptor specifying file to map */
-                                      0                                     /* offset of mapping in shm file */
-                                      )) < 0) { error("[CAP ] mmap"); }
+    if ((pshm_1_base = (SHMSEG_1 *)mmap(NULL,                                   /* system chooses where to place shm in virtual address space */
+                                        PSHM_1_NUM_OF_PROD * sizeof(SHMSEG_1),  /* size of mapping */
+                                        PROT_READ|PROT_WRITE,                   /* read-write mapping */
+                                        MAP_SHARED,                             /* make modifications to shm visible to other processes */
+                                        pshm_1_fd,                              /* file descriptor specifying file to map */
+                                        0                                       /* offset of mapping in shm file */
+                                        )) < 0) { error("[CAP ] mmap"); }
 
     /* Close shared memory file descriptor */
     if (close(pshm_1_fd) < 0) { error("[CAP ] close"); }
@@ -325,23 +342,24 @@ void utx_task(void)
     SHMSEG_1 shmseg_utx;
     SHMSEG_1 *shmseg_utx_ptr = &shmseg_utx;
     SHMSEG_1 *pshm_1_base = NULL;
-
+    struct timespec cap_timeout = { 0, 10000 };     // 10 ms timeout
+    int ret;
     int cnt;
 
     /* Open shared memory */
-    if ((pshm_1_fd = shm_open(PSHM_1_NAME,                                    /* name of object */
-                              O_RDONLY,                                       /* open object for read only access */
-                              0                                               /* mode - specified 0 for opening existing object */
+    if ((pshm_1_fd = shm_open(PSHM_1_NAME,                                      /* name of object */
+                              O_RDONLY,                                         /* open object for read only access */
+                              0                                                 /* mode - specified 0 for opening existing object */
                               )) < 0) { error("[UTX ] shm_open"); }
 
     /* Map shared memory segment to address space of process */
-    if ((pshm_1_base = (SHMSEG_1 *)mmap(NULL,                                 /* system chooses where to place shm in virtual address space */
-                                      PSHM_1_NUM_OF_PROD * sizeof(SHMSEG_1),  /* size of mapping */
-                                      PROT_READ,                              /* read mapping */
-                                      MAP_SHARED,                             /* make modifications to shm visible to other processes */
-                                      pshm_1_fd,                              /* file descriptor specifying file to map */
-                                      0                                       /* offset of mapping in shm file */
-                                      )) < 0) { error("[UTX ] mmap"); }
+    if ((pshm_1_base = (SHMSEG_1 *)mmap(NULL,                                   /* system chooses where to place shm in virtual address space */
+                                        PSHM_1_NUM_OF_PROD * sizeof(SHMSEG_1),  /* size of mapping */
+                                        PROT_READ,                              /* read mapping */
+                                        MAP_SHARED,                             /* make modifications to shm visible to other processes */
+                                        pshm_1_fd,                              /* file descriptor specifying file to map */
+                                        0                                       /* offset of mapping in shm file */
+                                        )) < 0) { error("[UTX ] mmap"); }
 
     /* Close shared memory file descriptor */
     if (close(pshm_1_fd) < 0) { error("[UTX ] close"); }
@@ -353,28 +371,33 @@ void utx_task(void)
     while(1)
     {
         /* Wait for new lux sensor data */
-        sem_wait(lux_sem);
+        ret = sem_trywait(lux_sem);
+        
+        /* Read lux data and transmit if semaphore is acquired */
+        if (ret == 0)
+        {
+            /* Read lux sensor data */
+            memcpy((void*)shmseg_utx_ptr, (void*)(&pshm_1_base[LUX]), sizeof(SHMSEG_1));
+            PDEBUG("[UTX ] shmseg_lux.sensor = %d\n", shmseg_utx.sensor);
+            PDEBUG("[UTX ] shmseg_lux.data = %d\n", shmseg_utx.data);
 
-        /* Read lux sensor data */
-        memcpy((void*)shmseg_utx_ptr, (void*)(&pshm_1_base[LUX]), sizeof(SHMSEG_1));
-        PDEBUG("[UTX ] shmseg_lux.sensor = %d\n", shmseg_utx.sensor);
-        PDEBUG("[UTX ] shmseg_lux.data = %d\n", shmseg_utx.data);
+            /* Transmit data to TIVA */
+            if ((cnt = write(uart_fd, shmseg_utx_ptr, sizeof(SHMSEG_1))) < 0) { error("[UTX ] write"); }
+        }
 
-        /* Transmit data to TIVA */
-        if ((cnt = write(uart_fd, shmseg_utx_ptr, sizeof(SHMSEG_1))) < 0) { error("[UTX ] write"); }
+        /* Wait for new capacitive sensor data - with 10 ms timeout */
+        ret = sem_timedwait(cap_sem, &cap_timeout);
 
+        if (ret == 0)
+        {
+            /* Read capacitive sensor data */
+            memcpy((void*)shmseg_utx_ptr, (void*)(&pshm_1_base[CAP]), sizeof(SHMSEG_1));
+            PDEBUG("[UTX ] shmseg_cap.sensor = %d\n", shmseg_utx.sensor);
+            PDEBUG("[UTX ] shmseg_cap.data = %d\n", shmseg_utx.data);
 
-
-        /* Wait for new capacitive sensor data */
-        sem_wait(cap_sem);
-
-        /* Read capacitive sensor data */
-        memcpy((void*)shmseg_utx_ptr, (void*)(&pshm_1_base[CAP]), sizeof(SHMSEG_1));
-        PDEBUG("[UTX ] shmseg_cap.sensor = %d\n", shmseg_utx.sensor);
-        PDEBUG("[UTX ] shmseg_cap.data = %d\n", shmseg_utx.data);
-
-        /* Transmit data to TIVA */
-        if ((cnt = write(uart_fd, shmseg_utx_ptr, sizeof(SHMSEG_1))) < 0) { error("[UTX ] write"); }
+            /* Transmit data to TIVA */
+            if ((cnt = write(uart_fd, shmseg_utx_ptr, sizeof(SHMSEG_1))) < 0) { error("[UTX ] write"); }
+        }
     }
 
     /* Unmap the mapped shared memory segment from the address space of the process */
@@ -395,7 +418,7 @@ void urx_task(void)
     PDEBUG("[LOG ] Task Started - PID %ld\n", (long)getpid());
 
     int pshm_2_fd;
-    // sem_t *lux_sem, *cap_sem;
+    sem_t *act_sem, *log_sem;
     SHMSEG_2 shmseg_urx;
     SHMSEG_2 *shmseg_urx_ptr = &shmseg_urx;
     SHMSEG_2 *pshm_2_base = NULL;
@@ -403,41 +426,112 @@ void urx_task(void)
     int cnt;
 
     /* Open shared memory */
-    if ((pshm_2_fd = shm_open(PSHM_2_NAME,                                    /* name of object */
-                              O_RDWR,                                         /* open object for read write access */
-                              0                                               /* mode - specified 0 for opening existing object */
+    if ((pshm_2_fd = shm_open(PSHM_2_NAME,                                      /* name of object */
+                              O_RDWR,                                           /* open object for read write access */
+                              0                                                 /* mode - specified 0 for opening existing object */
                               )) < 0) { error("[URX ] shm_open"); }
 
     /* Map shared memory segment to address space of process */
-    if ((pshm_2_base = (SHMSEG_2 *)mmap(NULL,                                 /* system chooses where to place shm in virtual address space */
-                                      PSHM_2_NUM_OF_PROD * sizeof(SHMSEG_2),  /* size of mapping */
-                                      PROT_READ|PROT_WRITE,                   /* read-write mapping */
-                                      MAP_SHARED,                             /* make modifications to shm visible to other processes */
-                                      pshm_2_fd,                              /* file descriptor specifying file to map */
-                                      0                                       /* offset of mapping in shm file */
-                                      )) < 0) { error("[URX ] mmap"); }
+    if ((pshm_2_base = (SHMSEG_2 *)mmap(NULL,                                   /* system chooses where to place shm in virtual address space */
+                                        sizeof(SHMSEG_2),                       /* size of mapping */
+                                        PROT_READ|PROT_WRITE,                   /* read-write mapping */
+                                        MAP_SHARED,                             /* make modifications to shm visible to other processes */
+                                        pshm_2_fd,                              /* file descriptor specifying file to map */
+                                        0                                       /* offset of mapping in shm file */
+                                        )) < 0) { error("[URX ] mmap"); }
 
     /* Close shared memory file descriptor */
     if (close(pshm_2_fd) < 0) { error("[URX ] close"); }
 
     /* Open the semaphore */
-    // if ((lux_sem = sem_open(lux_sem_name, 0, 0600, 0)) < 0) { error("[URX ] sem_open"); }
-    // if ((cap_sem = sem_open(cap_sem_name, 0, 0600, 0)) < 0) { error("[URX ] sem_open"); }
+    if ((act_sem = sem_open(act_sem_name, 0, 0600, 0)) < 0) { error("[URX ] sem_open"); }
+    if ((log_sem = sem_open(log_sem_name, 0, 0600, 0)) < 0) { error("[URX ] sem_open"); }
 
     while(1)
     {
         /* Receive data from TIVA */
         if ((cnt = read(uart_fd, shmseg_urx_ptr, sizeof(SHMSEG_2))) < 0) { error("[URX ] read"); }
-        PDEBUG("[URX ] shmseg_urx_ptr->sensor = %d\n", shmseg_urx_ptr->actuator);
-        PDEBUG("[URX ] shmseg_urx_ptr->data = %d\n", shmseg_urx_ptr->value);
+        PDEBUG("[URX ] shmseg_urx.sensor = %d\n", shmseg_urx.actuator);
+        PDEBUG("[URX ] shmseg_urx.data = %d\n", shmseg_urx.value);
+
+        /* Write data to shared memory */
+        memcpy((void*)pshm_2_base, (void*)shmseg_urx_ptr, sizeof(SHMSEG_2));
+
+        /* Post semaphore */
+        sem_post(act_sem);
+        sem_post(log_sem);
     }
 
     /* Unmap the mapped shared memory segment from the address space of the process */
-    if (munmap(pshm_2_base, PSHM_2_NUM_OF_PROD * sizeof(SHMSEG_2)) < 0) { error("[URX ] munmap"); }
+    if (munmap(pshm_2_base, sizeof(SHMSEG_2)) < 0) { error("[URX ] munmap"); }
 
     /* Close the semaphore */
-    // if (sem_close(lux_sem) < 0) { error("[UTX ] sem_close"); }
-    // if (sem_close(cap_sem) < 0) { error("[UTX ] sem_close"); }
+    if (sem_close(act_sem) < 0) { error("[UTX ] sem_close"); }
+    if (sem_close(log_sem) < 0) { error("[UTX ] sem_close"); }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////
+
+/* Actuator Task 
+ * Consumer 1 for Shared Memory 2 */
+void act_task(void)
+{
+    syslog(LOG_DEBUG, "[ACT ] Task Started - PID %ld\n", (long)getpid());
+    PDEBUG("[ACT ] Task Started - PID %ld\n", (long)getpid());
+
+    int pshm_2_fd;
+    sem_t *act_sem;
+    SHMSEG_2 shmseg_act;
+    SHMSEG_2 *shmseg_act_ptr = &shmseg_act;
+    SHMSEG_2 *pshm_2_base = NULL;
+    // int ret;
+
+    /* Open shared memory */
+    if ((pshm_2_fd = shm_open(PSHM_2_NAME,                                      /* name of object */
+                              O_RDONLY,                                         /* open object for read only access */
+                              0                                                 /* mode - specified 0 for opening existing object */
+                              )) < 0) { error("[ACT ] shm_open"); }
+
+    /* Map shared memory segment to address space of process */
+    if ((pshm_2_base = (SHMSEG_2 *)mmap(NULL,                                   /* system chooses where to place shm in virtual address space */
+                                        sizeof(SHMSEG_2),                       /* size of mapping */
+                                        PROT_READ,                              /* read mapping */
+                                        MAP_SHARED,                             /* make modifications to shm visible to other processes */
+                                        pshm_2_fd,                              /* file descriptor specifying file to map */
+                                        0                                       /* offset of mapping in shm file */
+                                        )) < 0) { error("[ACT ] mmap"); }
+
+    /* Close shared memory file descriptor */
+    if (close(pshm_2_fd) < 0) { error("[ACT ] close"); }
+
+    /* Open the semaphore */
+    if ((act_sem = sem_open(act_sem_name, 0, 0600, 0)) < 0) { error("[ACT ] sem_open"); }
+
+    /* Initialize actuators */
+    if (actuators_init() < 0) { error("[ACT ] Initialization Failure"); }
+
+    while(1)
+    {
+        /* Wait for new actuator data */
+        sem_wait(act_sem);
+
+        /* Read data from shared memory */
+        memcpy((void*)shmseg_act_ptr, (void*)(pshm_2_base), sizeof(SHMSEG_2));
+        PDEBUG("[ACT ] shmseg_act.actuator = %d\n", shmseg_act.actuator);
+        PDEBUG("[ACT ] shmseg_act.value = %d\n", shmseg_act.value);
+
+        /* Actuate */
+        if (actuate(shmseg_act.actuator, shmseg_act.value) < 0) { error("[ACT ] Actuation Failure"); }
+    }
+
+    /* De-initialize actuators */
+    if (actuators_deinit() < 0) { error("[ACT ] De-initialization Failure"); }
+
+    /* Unmap the mapped shared memory segment from the address space of the process */
+    if (munmap(pshm_2_base, sizeof(SHMSEG_2)) < 0) { error("[ACT ] munmap"); }
+
+    /* Close the semaphore */
+    if (sem_close(act_sem) < 0) { error("[ACT ] sem_close"); }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -448,6 +542,141 @@ void log_task(void)
 {
     syslog(LOG_DEBUG, "[LOG ] Task Started - PID %ld\n", (long)getpid());
     PDEBUG("[LOG ] Task Started - PID %ld\n", (long)getpid());
+
+    int pshm_2_fd;
+    sem_t *log_sem;
+    SHMSEG_2 shmseg_log;
+    SHMSEG_2 *shmseg_log_ptr = &shmseg_log;
+    SHMSEG_2 *pshm_2_base = NULL;
+    // int ret;
+
+    /* Open shared memory */
+    if ((pshm_2_fd = shm_open(PSHM_2_NAME,                                      /* name of object */
+                              O_RDONLY,                                         /* open object for read only access */
+                              0                                                 /* mode - specified 0 for opening existing object */
+                              )) < 0) { error("[LOG ] shm_open"); }
+
+    /* Map shared memory segment to address space of process */
+    if ((pshm_2_base = (SHMSEG_2 *)mmap(NULL,                                   /* system chooses where to place shm in virtual address space */
+                                        sizeof(SHMSEG_2),                       /* size of mapping */
+                                        PROT_READ,                              /* read mapping */
+                                        MAP_SHARED,                             /* make modifications to shm visible to other processes */
+                                        pshm_2_fd,                              /* file descriptor specifying file to map */
+                                        0                                       /* offset of mapping in shm file */
+                                        )) < 0) { error("[LOG ] mmap"); }
+
+    /* Close shared memory file descriptor */
+    if (close(pshm_2_fd) < 0) { error("[LOG ] close"); }
+
+    /* Open the semaphore */
+    if ((log_sem = sem_open(log_sem_name, 0, 0600, 0)) < 0) { error("[LOG ] sem_open"); }
+
+    while(1)
+    {
+        /* Wait for new actuator data */
+        sem_wait(log_sem);
+
+        /* Read data from shared memory */
+        memcpy((void*)shmseg_log_ptr, (void*)(pshm_2_base), sizeof(SHMSEG_2));
+        PDEBUG("[LOG ] shmseg_log.actuator = %d\n", shmseg_log.actuator);
+        PDEBUG("[LOG ] shmseg_log.value = %d\n", shmseg_log.value);
+
+        /* Log actuator data */
+        if (shmseg_log.actuator == LED)
+            syslog(LOG_INFO, "[LOG ] LED value = %d\n", shmseg_log.value);
+        else if (shmseg_log.actuator == BUZ)
+            syslog(LOG_INFO, "[LOG ] BUZ value = %d\n", shmseg_log.value);
+        else
+            syslog(LOG_INFO, "[LOG ] Received wrong value\n");
+    }
+
+    /* Unmap the mapped shared memory segment from the address space of the process */
+    if (munmap(pshm_2_base, sizeof(SHMSEG_2)) < 0) { error("[LOG ] munmap"); }
+
+    /* Close the semaphore */
+    if (sem_close(log_sem) < 0) { error("[LOG ] sem_close"); }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////
+
+int actuators_init(void)
+{
+   // export led gpio and buzzer pin
+   if (gpio_export(ACT_LED_GPIO) != 0)
+   {
+       perror("[ACT ] gpio_export");
+       return EXIT_FAILURE;
+   }
+   if (gpio_export(ACT_BUZ_GPIO) != 0)
+   {
+       perror("[ACT ] gpio_export");
+       return EXIT_FAILURE;
+   }
+
+   // set led and buzzer gpio as output
+   if (gpio_set_dir(ACT_LED_GPIO, GPIO_DIR_OUTPUT) != 0)
+   {
+       perror("[ACT ] gpio_set_dir");
+       return EXIT_FAILURE;
+   }
+   if (gpio_set_dir(ACT_BUZ_GPIO, GPIO_DIR_OUTPUT) != 0)
+   {
+       perror("[ACT ] gpio_set_dir");
+       return EXIT_FAILURE;
+   }
+
+   return EXIT_SUCCESS;
+}
+
+int actuate(uint8_t actuator, uint8_t value)
+{
+    PDEBUG("[ACT ] [ACTUATE] actuator = %d\n", actuator);
+    PDEBUG("[ACT ] [ACTUATE] value = %d\n", value);
+    
+    /* Set actuator if value greater than 0 */
+    if (value > 0)
+        value = 1;
+
+    if (actuator == LED)
+    {
+        if (gpio_set_value(ACT_LED_GPIO, value) != 0)
+        {
+            perror("[ACT ] gpio_set_value");
+            return EXIT_FAILURE;
+        }
+    }
+    else if (actuator == BUZ)
+    {
+        if (gpio_set_value(ACT_BUZ_GPIO, value) != 0)
+        {
+            perror("[ACT ] gpio_set_value");
+            return EXIT_FAILURE;
+        }
+    }
+    else
+    {
+        perror("[ACT ] wrong actuator id");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int actuators_deinit(void)
+{
+   // unexport gpio pin
+   if (gpio_unexport(ACT_LED_GPIO) != 0)
+   {
+       perror("[ACT ] gpio_unexport");
+       return EXIT_FAILURE;
+   }
+   if (gpio_unexport(ACT_BUZ_GPIO) != 0)
+   {
+       perror("[ACT ] gpio_unexport");
+       return EXIT_FAILURE;
+   }
+
+   return EXIT_SUCCESS;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -532,13 +761,11 @@ int lux_sensor_init(void)
         return EXIT_FAILURE;
     }
 
-
     /* Select slave address */
     if(ioctl(i2c_fd, I2C_SLAVE, APDS9301_SLAVE_ADDR) < 0) {
         perror("[LUX ] [APDS9301] i2c - ioctl error");
         return EXIT_FAILURE;
     }
-
 
     /* Power on the sensor if off */
     if(apds9301_read_reg_byte(i2c_fd, APDS9301_SLAVE_ADDR, (APDS9301_CMD_REG | APDS9301_CTRL_REG), &apds9301_power_state) != 0) {
@@ -555,7 +782,6 @@ int lux_sensor_init(void)
         }
     }
     printf("[LUX ] [APDS9301] Lux sensor powered up\n");
-
 
     /* Read device ID */
     if(apds9301_read_reg_byte(i2c_fd, APDS9301_SLAVE_ADDR, (APDS9301_CMD_REG | APDS9301_ID_REG), &apds9301_id) != 0) {

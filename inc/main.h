@@ -1,4 +1,4 @@
-#define NUM_OF_TASKS     (5)
+#define NUM_OF_TASKS     (6)
 
 /* Shared memory defines */
 #define PSHM_1_NAME           ("/pshm_1")
@@ -21,8 +21,13 @@
 #  define PDEBUG(fmt, args...) /* not debugging: nothing */
 #endif
 
+/* Enum for sensor */
 enum { LUX = 0, 
        CAP };
+
+/* Enum for actuator */
+enum { LED = 0, 
+       BUZ };
 
 /* Shared memory 1 segment data */
 typedef struct {
@@ -39,6 +44,8 @@ typedef struct {
 /* Shared memory synchronization semaphores */
 char* cap_sem_name = "cap_sem";
 char* lux_sem_name = "lux_sem";
+char* act_sem_name = "act_sem";
+char* log_sem_name = "log_sem";
 
 /*** Lux sensor ***/
 #include <math.h>
@@ -75,5 +82,9 @@ int uart_fd;
 #define ON              (1)
 #define OFF             (0)
 
-#define CAP_LED_GPIO    (53)
-#define CAP_DATA_GPIO   (69)
+#define CAP_LED_GPIO    (53)       // USR LED 0
+#define CAP_DATA_GPIO   (69)       // P8_09
+
+/*** Actuators ***/
+#define ACT_LED_GPIO    (87)       // USR LED 2
+#define ACT_BUZ_GPIO    (67)       // P8_08
