@@ -14,6 +14,7 @@
 #include <sys/wait.h>
 #include <sys/mman.h>
 #include <syslog.h>
+
 #include "../inc/main.h"
 
 
@@ -21,16 +22,23 @@
 void error (char *msg);
 
 void lux_task(void);
-uint8_t lux_sensor_init(void);
-uint8_t get_lux_value(void);
+int lux_sensor_init(void);
+int get_lux_value(void);
 int apds9301_read_reg_byte(int file, unsigned char addr, unsigned char cmd_reg, unsigned char* data);
 int apds9301_write_reg_byte(int file, unsigned char addr, unsigned char cmd_reg, unsigned char* data);
 float calculate_lux(uint16_t ch0, uint16_t ch1);
 
 void cap_task(void);
+int cap_sensor_init(void);
+int get_cap_value(void);
+int cap_sensor_deinit(void);
+
 void utx_task(void);
+void urx_task(void);
 void log_task(void);
 
+uint8_t uart_init(void);
+uint8_t uart_deinit(void);
 
 int main(void)
 {
@@ -38,6 +46,7 @@ int main(void)
     void(*fun_ptr_arr[])(void) = { lux_task, 
                                    cap_task,
                                    utx_task,
+                                   urx_task,
                                    log_task };
     pid_t fork_pid[NUM_OF_TASKS];
     pid_t wait_pid;
@@ -48,13 +57,16 @@ int main(void)
 
     int pshm_1_fd, pshm_2_fd;               // file descriptor, from shm_open
 
+    /* Initialize UART */
+    if(uart_init() < 0) { error("[MAIN] uart init"); }
+
     /* Create POSIX shared memory */
     if ((pshm_1_fd = shm_open(PSHM_1_NAME, O_CREAT | O_EXCL | O_RDWR, 0600)) < 0) { error("[MAIN] shm_open"); }
     if ((pshm_2_fd = shm_open(PSHM_2_NAME, O_CREAT | O_EXCL | O_RDWR, 0600)) < 0) { error("[MAIN] shm_open"); }
 
     /* Set size of shared memory */
-    if (ftruncate(pshm_1_fd, PSHM_1_NUM_OF_PROD * sizeof(SHMSEG)) < 0) { error("[MAIN] ftruncate"); }
-    if (ftruncate(pshm_2_fd, PSHM_2_NUM_OF_PROD * sizeof(SHMSEG)) < 0) { error("[MAIN] ftruncate"); }
+    if (ftruncate(pshm_1_fd, PSHM_1_NUM_OF_PROD * sizeof(SHMSEG_1)) < 0) { error("[MAIN] ftruncate"); }
+    if (ftruncate(pshm_2_fd, PSHM_2_NUM_OF_PROD * sizeof(SHMSEG_2)) < 0) { error("[MAIN] ftruncate"); }
 
     /* Close shared memory file descriptors */
     if (close(pshm_1_fd) < 0) { error("[MAIN] close"); }
@@ -71,7 +83,7 @@ int main(void)
     PDEBUG("[MAIN] Starting Tasks\n");
     for (i=0; i<task_cnt; i++)
     {
-        if ((fork_pid[i] = fork()) < 0)                      // error check
+        if ((fork_pid[i] = fork()) < 0)                     // error check
         {
             error("fork");
         }
@@ -97,6 +109,9 @@ int main(void)
         PDEBUG("[MAIN] Child with PID %ld exited with status %d\n", (long)wait_pid, status);
     }
 
+    /* De-initialize UART */
+    if(uart_deinit() < 0) { error("[MAIN] uart deinit"); }
+
     /* Unlink shared memory */
     if (shm_unlink(PSHM_1_NAME) < 0) { error("[MAIN] shm_unlink"); }
     if (shm_unlink(PSHM_2_NAME) < 0) { error("[MAIN] shm_unlink"); }
@@ -118,8 +133,51 @@ void error (char *msg)
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 
+uint8_t uart_init(void)
+{
+    struct termios options;
+
+    if ((uart_fd = open("/dev/ttyO1", O_RDWR | O_NOCTTY)) < 0)
+    {
+        perror("[MAIN] uart - open");
+        return EXIT_FAILURE;
+    }
+
+    tcgetattr(uart_fd, &options);
+    if((cfsetispeed(&options, B115200)) == -1)
+    {
+        perror("[MAIN] uart - input baud");
+        return EXIT_FAILURE;
+    }
+    if((cfsetospeed(&options, B115200)) == -1)
+    {
+        perror("[MAIN] uart - output baud");
+        return EXIT_FAILURE;
+    } 
+
+    options.c_cflag |= (CLOCAL | CS8);
+    options.c_iflag &= ~(ISTRIP | IXON | INLCR | PARMRK | ICRNL | IGNBRK);
+    options.c_oflag &= ~(OPOST);
+    options.c_lflag &= ~(ICANON | ECHO | ECHONL | ISIG | IEXTEN);
+
+    tcsetattr(uart_fd, TCSAFLUSH, &options);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////
+
+uint8_t uart_deinit(void)
+{
+    if(close(uart_fd) < 0)
+    {
+        perror("[MAIN] uart - close");
+        return EXIT_FAILURE;
+    } 
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////
+
 /* Lux Sensor Task 
- * Producer 1 for Shared Memory */
+ * Producer 1 for Shared Memory 1 */
 void lux_task(void)
 {
     syslog(LOG_DEBUG, "[LUX ] Task Started - PID %ld\n", (long)getpid());
@@ -127,24 +185,25 @@ void lux_task(void)
 
     int pshm_1_fd;
     sem_t *lux_sem;
-    SHMSEG shmseg_lux = { 0, 0 };
-    SHMSEG *shmseg_lux_ptr = &shmseg_lux;
-    SHMSEG *pshm_1_base = NULL;
+    SHMSEG_1 shmseg_lux = { 0, 0 };
+    SHMSEG_1 *shmseg_lux_ptr = &shmseg_lux;
+    SHMSEG_1 *pshm_1_base = NULL;
     shmseg_lux_ptr->sensor = LUX;
+    int ret;
 
     /* Open shared memory */
-    if ((pshm_1_fd = shm_open(PSHM_1_NAME,                                  /* name of object */
-                              O_RDWR,                                       /* open object for read-write access */
-                              0                                             /* mode - specified 0 for opening existing object */
+    if ((pshm_1_fd = shm_open(PSHM_1_NAME,                                    /* name of object */
+                              O_RDWR,                                         /* open object for read-write access */
+                              0                                               /* mode - specified 0 for opening existing object */
                               )) < 0) { error("[LUX ] shm_open"); }
 
     /* Map shared memory segment to address space of process */
-    if ((pshm_1_base = (SHMSEG *)mmap(NULL,                                 /* system chooses where to place shm in virtual address space */
-                                      PSHM_1_NUM_OF_PROD * sizeof(SHMSEG),  /* size of mapping */
-                                      PROT_READ|PROT_WRITE,                 /* read-write mapping */
-                                      MAP_SHARED,                           /* make modifications to shm visible to other processes */
-                                      pshm_1_fd,                            /* file descriptor specifying file to map */
-                                      0                                     /* offset of mapping in shm file */
+    if ((pshm_1_base = (SHMSEG_1 *)mmap(NULL,                                 /* system chooses where to place shm in virtual address space */
+                                      PSHM_1_NUM_OF_PROD * sizeof(SHMSEG_1),  /* size of mapping */
+                                      PROT_READ|PROT_WRITE,                   /* read-write mapping */
+                                      MAP_SHARED,                             /* make modifications to shm visible to other processes */
+                                      pshm_1_fd,                              /* file descriptor specifying file to map */
+                                      0                                       /* offset of mapping in shm file */
                                       )) < 0) { error("[LUX ] mmap"); }
 
     /* Close shared memory file descriptor */
@@ -154,16 +213,19 @@ void lux_task(void)
     if ((lux_sem = sem_open(lux_sem_name, 0, 0600, 0)) < 0) { error("[LUX ] sem_open"); }
 
     /* Initialize lux sensor */
-    if(lux_sensor_init() < 0) { error("[LUX ] Initialization Failure"); }
+    if (lux_sensor_init() < 0) { error("[LUX ] Initialization Failure"); }
 
     while(1)
     {
         /* Take sensor readings */
-        shmseg_lux_ptr->data = get_lux_value();
-        // shmseg_lux_ptr->data = 45;
+        ret = get_lux_value();
+        if (ret < 0) { error("[LUX ] Value read failure"); }
+        else {
+            shmseg_lux_ptr->data = (uint8_t)ret;
+        }
 
         /* Write data to shared memory */
-        memcpy((void*)(&pshm_1_base[LUX]), (void*)shmseg_lux_ptr, sizeof(SHMSEG));
+        memcpy((void*)(&pshm_1_base[LUX]), (void*)shmseg_lux_ptr, sizeof(SHMSEG_1));
 
         /* Post semaphore */
         sem_post(lux_sem);
@@ -173,7 +235,7 @@ void lux_task(void)
     }
 
     /* Unmap the mapped shared memory segment from the address space of the process */
-    if (munmap(pshm_1_base, PSHM_1_NUM_OF_PROD * sizeof(SHMSEG)) < 0) { error("[LUX ] munmap"); }
+    if (munmap(pshm_1_base, PSHM_1_NUM_OF_PROD * sizeof(SHMSEG_1)) < 0) { error("[LUX ] munmap"); }
 
     /* Close the semaphore */
     if (sem_close(lux_sem) < 0) { error("[LUX ] sem_close"); }
@@ -182,7 +244,7 @@ void lux_task(void)
 ////////////////////////////////////////////////////////////////////////////////////////////
 
 /* Capacitive Sensor Task 
- * Producer 2 for Shared Memory */
+ * Producer 2 for Shared Memory 1 */
 void cap_task(void)
 {
     syslog(LOG_DEBUG, "[CAP ] Task Started - PID %ld\n", (long)getpid());
@@ -190,10 +252,11 @@ void cap_task(void)
 
     int pshm_1_fd;
     sem_t *cap_sem;
-    SHMSEG shmseg_cap = { 0, 0 };
-    SHMSEG *shmseg_cap_ptr = &shmseg_cap;
-    SHMSEG *pshm_1_base = NULL;
+    SHMSEG_1 shmseg_cap = { 0, 0 };
+    SHMSEG_1 *shmseg_cap_ptr = &shmseg_cap;
+    SHMSEG_1 *pshm_1_base = NULL;
     shmseg_cap_ptr->sensor = CAP;
+    int ret;
 
     /* Open shared memory */
     if ((pshm_1_fd = shm_open(PSHM_1_NAME,                                  /* name of object */
@@ -202,8 +265,8 @@ void cap_task(void)
                               )) < 0) { error("[CAP ] shm_open"); }
 
     /* Map shared memory segment to address space of process */
-    if ((pshm_1_base = (SHMSEG *)mmap(NULL,                                 /* system chooses where to place shm in virtual address space */
-                                      PSHM_1_NUM_OF_PROD * sizeof(SHMSEG),  /* size of mapping */
+    if ((pshm_1_base = (SHMSEG_1 *)mmap(NULL,                                 /* system chooses where to place shm in virtual address space */
+                                      PSHM_1_NUM_OF_PROD * sizeof(SHMSEG_1),  /* size of mapping */
                                       PROT_READ|PROT_WRITE,                 /* read-write mapping */
                                       MAP_SHARED,                           /* make modifications to shm visible to other processes */
                                       pshm_1_fd,                            /* file descriptor specifying file to map */
@@ -216,23 +279,33 @@ void cap_task(void)
     /* Open the semaphore */
     if ((cap_sem = sem_open(cap_sem_name, 0, 0600, 0)) < 0) { error("[CAP ] sem_open"); }
 
+    /* Initialize capacitive sensor */
+    if (cap_sensor_init() < 0) { error("[CAP ] Initialization Failure"); }
+
     while(1)
     {
-        // TODO: take sensor readings
-        shmseg_cap_ptr->data = 46;
+        /* Take sensor readings */
+        ret = get_cap_value();
+        if (ret < 0) { error("[CAP ] Value read failure"); }
+        else {
+            shmseg_cap_ptr->data = (uint8_t)ret;
+        }
 
         /* Write data to shared memory */
-        memcpy((void*)(&pshm_1_base[CAP]), (void*)shmseg_cap_ptr, sizeof(SHMSEG));
+        memcpy((void*)(&pshm_1_base[CAP]), (void*)shmseg_cap_ptr, sizeof(SHMSEG_1));
 
         /* Post semaphore */
         sem_post(cap_sem);
 
-        // sleep
+        /* Sleep - period of measurement */
         sleep(2);
     }
 
+    /* De-initialize capacitive sensor */
+    if (cap_sensor_deinit() < 0) { error("[CAP ] De-initialization Failure"); }
+
     /* Unmap the mapped shared memory segment from the address space of the process */
-    if (munmap(pshm_1_base, PSHM_1_NUM_OF_PROD * sizeof(SHMSEG)) < 0) { error("[CAP ] munmap"); }
+    if (munmap(pshm_1_base, PSHM_1_NUM_OF_PROD * sizeof(SHMSEG_1)) < 0) { error("[CAP ] munmap"); }
 
     /* Close the semaphore */
     if (sem_close(cap_sem) < 0) { error("[CAP ] sem_close"); }
@@ -241,7 +314,7 @@ void cap_task(void)
 ////////////////////////////////////////////////////////////////////////////////////////////
 
 /* UART Tx Task 
- * Consumer 1 for Shared Memory */
+ * Consumer 1 for Shared Memory 1 */
 void utx_task(void)
 {
     syslog(LOG_DEBUG, "[UTX ] Task Started - PID %ld\n", (long)getpid());
@@ -249,23 +322,25 @@ void utx_task(void)
 
     int pshm_1_fd;
     sem_t *lux_sem, *cap_sem;
-    SHMSEG shmseg_utx;
-    SHMSEG *shmseg_utx_ptr = &shmseg_utx;
-    SHMSEG *pshm_1_base = NULL;
+    SHMSEG_1 shmseg_utx;
+    SHMSEG_1 *shmseg_utx_ptr = &shmseg_utx;
+    SHMSEG_1 *pshm_1_base = NULL;
+
+    int cnt;
 
     /* Open shared memory */
-    if ((pshm_1_fd = shm_open(PSHM_1_NAME,                                  /* name of object */
-                              O_RDONLY,                                     /* open object for read only access */
-                              0                                             /* mode - specified 0 for opening existing object */
+    if ((pshm_1_fd = shm_open(PSHM_1_NAME,                                    /* name of object */
+                              O_RDONLY,                                       /* open object for read only access */
+                              0                                               /* mode - specified 0 for opening existing object */
                               )) < 0) { error("[UTX ] shm_open"); }
 
     /* Map shared memory segment to address space of process */
-    if ((pshm_1_base = (SHMSEG *)mmap(NULL,                                 /* system chooses where to place shm in virtual address space */
-                                      PSHM_1_NUM_OF_PROD * sizeof(SHMSEG),  /* size of mapping */
-                                      PROT_READ,                            /* read mapping */
-                                      MAP_SHARED,                           /* make modifications to shm visible to other processes */
-                                      pshm_1_fd,                            /* file descriptor specifying file to map */
-                                      0                                     /* offset of mapping in shm file */
+    if ((pshm_1_base = (SHMSEG_1 *)mmap(NULL,                                 /* system chooses where to place shm in virtual address space */
+                                      PSHM_1_NUM_OF_PROD * sizeof(SHMSEG_1),  /* size of mapping */
+                                      PROT_READ,                              /* read mapping */
+                                      MAP_SHARED,                             /* make modifications to shm visible to other processes */
+                                      pshm_1_fd,                              /* file descriptor specifying file to map */
+                                      0                                       /* offset of mapping in shm file */
                                       )) < 0) { error("[UTX ] mmap"); }
 
     /* Close shared memory file descriptor */
@@ -277,21 +352,33 @@ void utx_task(void)
 
     while(1)
     {
-        // wait for semaphore
-        sem_wait(cap_sem);
+        /* Wait for new lux sensor data */
         sem_wait(lux_sem);
 
-        memcpy((void*)shmseg_utx_ptr, (void*)(&pshm_1_base[LUX]), sizeof(SHMSEG));
+        /* Read lux sensor data */
+        memcpy((void*)shmseg_utx_ptr, (void*)(&pshm_1_base[LUX]), sizeof(SHMSEG_1));
         PDEBUG("[UTX ] shmseg_lux.sensor = %d\n", shmseg_utx.sensor);
         PDEBUG("[UTX ] shmseg_lux.data = %d\n", shmseg_utx.data);
 
-        memcpy((void*)shmseg_utx_ptr, (void*)(&pshm_1_base[CAP]), sizeof(SHMSEG));
+        /* Transmit data to TIVA */
+        if ((cnt = write(uart_fd, shmseg_utx_ptr, sizeof(SHMSEG_1))) < 0) { error("[UTX ] write"); }
+
+
+
+        /* Wait for new capacitive sensor data */
+        sem_wait(cap_sem);
+
+        /* Read capacitive sensor data */
+        memcpy((void*)shmseg_utx_ptr, (void*)(&pshm_1_base[CAP]), sizeof(SHMSEG_1));
         PDEBUG("[UTX ] shmseg_cap.sensor = %d\n", shmseg_utx.sensor);
         PDEBUG("[UTX ] shmseg_cap.data = %d\n", shmseg_utx.data);
+
+        /* Transmit data to TIVA */
+        if ((cnt = write(uart_fd, shmseg_utx_ptr, sizeof(SHMSEG_1))) < 0) { error("[UTX ] write"); }
     }
 
     /* Unmap the mapped shared memory segment from the address space of the process */
-    if (munmap(pshm_1_base, PSHM_1_NUM_OF_PROD * sizeof(SHMSEG)) < 0) { error("[UTX ] munmap"); }
+    if (munmap(pshm_1_base, PSHM_1_NUM_OF_PROD * sizeof(SHMSEG_1)) < 0) { error("[UTX ] munmap"); }
 
     /* Close the semaphore */
     if (sem_close(lux_sem) < 0) { error("[UTX ] sem_close"); }
@@ -300,19 +387,137 @@ void utx_task(void)
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 
-/* Logger Task 
- * Consumer 2 for Shared Memory */
-void log_task(void)
+/* UART Rx Task 
+ * Producer 1 for Shared Memory 2 */
+void urx_task(void)
 {
     syslog(LOG_DEBUG, "[LOG ] Task Started - PID %ld\n", (long)getpid());
     PDEBUG("[LOG ] Task Started - PID %ld\n", (long)getpid());
 
-    // SHMSEG *shmseg_log;
+    int pshm_2_fd;
+    // sem_t *lux_sem, *cap_sem;
+    SHMSEG_2 shmseg_urx;
+    SHMSEG_2 *shmseg_urx_ptr = &shmseg_urx;
+    SHMSEG_2 *pshm_2_base = NULL;
+
+    int cnt;
+
+    /* Open shared memory */
+    if ((pshm_2_fd = shm_open(PSHM_2_NAME,                                    /* name of object */
+                              O_RDWR,                                         /* open object for read write access */
+                              0                                               /* mode - specified 0 for opening existing object */
+                              )) < 0) { error("[URX ] shm_open"); }
+
+    /* Map shared memory segment to address space of process */
+    if ((pshm_2_base = (SHMSEG_2 *)mmap(NULL,                                 /* system chooses where to place shm in virtual address space */
+                                      PSHM_2_NUM_OF_PROD * sizeof(SHMSEG_2),  /* size of mapping */
+                                      PROT_READ|PROT_WRITE,                   /* read-write mapping */
+                                      MAP_SHARED,                             /* make modifications to shm visible to other processes */
+                                      pshm_2_fd,                              /* file descriptor specifying file to map */
+                                      0                                       /* offset of mapping in shm file */
+                                      )) < 0) { error("[URX ] mmap"); }
+
+    /* Close shared memory file descriptor */
+    if (close(pshm_2_fd) < 0) { error("[URX ] close"); }
+
+    /* Open the semaphore */
+    // if ((lux_sem = sem_open(lux_sem_name, 0, 0600, 0)) < 0) { error("[URX ] sem_open"); }
+    // if ((cap_sem = sem_open(cap_sem_name, 0, 0600, 0)) < 0) { error("[URX ] sem_open"); }
+
+    while(1)
+    {
+        /* Receive data from TIVA */
+        if ((cnt = read(uart_fd, shmseg_urx_ptr, sizeof(SHMSEG_2))) < 0) { error("[URX ] read"); }
+        PDEBUG("[URX ] shmseg_urx_ptr->sensor = %d\n", shmseg_urx_ptr->actuator);
+        PDEBUG("[URX ] shmseg_urx_ptr->data = %d\n", shmseg_urx_ptr->value);
+    }
+
+    /* Unmap the mapped shared memory segment from the address space of the process */
+    if (munmap(pshm_2_base, PSHM_2_NUM_OF_PROD * sizeof(SHMSEG_2)) < 0) { error("[URX ] munmap"); }
+
+    /* Close the semaphore */
+    // if (sem_close(lux_sem) < 0) { error("[UTX ] sem_close"); }
+    // if (sem_close(cap_sem) < 0) { error("[UTX ] sem_close"); }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 
-uint8_t lux_sensor_init(void)
+/* Logger Task 
+ * Consumer 2 for Shared Memory 2 */
+void log_task(void)
+{
+    syslog(LOG_DEBUG, "[LOG ] Task Started - PID %ld\n", (long)getpid());
+    PDEBUG("[LOG ] Task Started - PID %ld\n", (long)getpid());
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////
+
+int cap_sensor_init(void)
+{
+    // export beaglebone led gpio pin, capacitive sensor led and data pins
+    if(gpio_export(CAP_LED_GPIO) != 0)
+    {
+        perror("[CAP ] gpio_export");
+        return EXIT_FAILURE;
+    }
+
+    if(gpio_export(CAP_DATA_GPIO) != 0)
+    {
+        perror("[CAP ] gpio_export");
+        return EXIT_FAILURE;
+    }
+
+    // set led pins as output and capacitive sensor data pin as input
+    if(gpio_set_dir(CAP_LED_GPIO, GPIO_DIR_OUTPUT) != 0)
+    {
+        perror("[CAP ] gpio_set_dir");
+        return EXIT_FAILURE;
+    }
+
+    if(gpio_set_dir(CAP_DATA_GPIO, GPIO_DIR_INPUT) != 0)
+    {
+        perror("[CAP ] gpio_set_dir");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int get_cap_value(void)
+{
+    int cap_data;
+    
+    // get sensor data
+    if(gpio_get_value(CAP_DATA_GPIO, &cap_data) != 0)
+    {
+        perror("[CAP ] gpio_get_value");
+        return EXIT_FAILURE;
+    }
+
+    return cap_data;
+}
+
+int cap_sensor_deinit(void)
+{
+    // unexport all exported pins
+    if(gpio_unexport(CAP_LED_GPIO) != 0)
+    {
+        perror("[CAP ] gpio_unexport");
+        return EXIT_FAILURE;
+    }
+
+    if(gpio_unexport(CAP_DATA_GPIO) != 0)
+    {
+        perror("[CAP ] gpio_unexport");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////
+
+int lux_sensor_init(void)
 {
     char filename[20];
     unsigned char apds9301_id;
@@ -363,13 +568,13 @@ uint8_t lux_sensor_init(void)
     return EXIT_SUCCESS;
 }
 
-uint8_t get_lux_value(void)
+int get_lux_value(void)
 {
     unsigned char ch0_data_low, ch0_data_high;
     unsigned char ch1_data_low, ch1_data_high;
     uint16_t ch0_data, ch1_data;
     float lux_flt;
-    uint8_t lux_ret;
+    int lux_ret;
     
     PDEBUG("\n[LUX ] [APDS9301] Reading CH0 byte by byte\n");
     if(apds9301_read_reg_byte(i2c_fd, APDS9301_SLAVE_ADDR, (APDS9301_CMD_REG | APDS9301_CH0_DATA_LOW), &ch0_data_low) != 0) {
@@ -404,7 +609,7 @@ uint8_t get_lux_value(void)
     lux_flt = calculate_lux(ch0_data, ch1_data);
     PDEBUG("[LUX ] [APDS9301] lux flt value = %0.2f\n", lux_flt);
 
-    lux_ret = (lux_flt < 255.00) ? (uint8_t)lux_flt : 255;
+    lux_ret = (lux_flt < 255.00) ? (int)lux_flt : 255;
     PDEBUG("[LUX ] [APDS9301] lux ret value = %d\n", lux_ret);
 
     return lux_ret;

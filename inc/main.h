@@ -1,4 +1,4 @@
-#define NUM_OF_TASKS     (4)
+#define NUM_OF_TASKS     (5)
 
 /* Shared memory defines */
 #define PSHM_1_NAME           ("/pshm_1")
@@ -24,11 +24,17 @@
 enum { LUX = 0, 
        CAP };
 
-/* Shared memory segment data */
+/* Shared memory 1 segment data */
 typedef struct {
      uint8_t sensor; 
      uint8_t data;
-} SHMSEG;
+} SHMSEG_1;
+
+/* Shared memory 2 segment data */
+typedef struct {
+     uint8_t actuator; 
+     uint8_t value;
+} SHMSEG_2;
 
 /* Shared memory synchronization semaphores */
 char* cap_sem_name = "cap_sem";
@@ -57,3 +63,17 @@ char* lux_sem_name = "lux_sem";
 #define APDS9301_CH1_DATA_HIGH      (0x0F)
 
 int i2c_fd;
+
+/*** UART Tx ***/
+#include <termios.h>
+
+int uart_fd;
+
+/*** Capacitive sensor ***/
+#include "../inc/gpio.h"
+
+#define ON              (1)
+#define OFF             (0)
+
+#define CAP_LED_GPIO    (53)
+#define CAP_DATA_GPIO   (69)
