@@ -14,19 +14,11 @@ ifeq ($(OPTFLAGS),)
 	OPTFLAGS = -O0
 endif
 
-all: bbb_main
+all: basic_uart
 
-bbb_main: main.o gpio.o
-	$(CC) $(CCFLAGS) $(OPTFLAGS) -o bbb_main main.o gpio.o $(LDFLAGS)
-
-main.o: src/main.c inc/main.h inc/gpio.h
-	$(CC) $(CCFLAGS) $(OPTFLAGS) -c src/main.c $(LDFLAGS)
-
-gpio.o: src/gpio.c inc/gpio.h
-	$(CC) $(CCFLAGS) -c src/gpio.c
-
-# bbb_main: src/main.c inc/main.h
-# 	$(CC) $(CCFLAGS) $(OPTFLAGS) -o bbb_main src/main.c $(LDFLAGS)
+basic_uart: test_src/basic_uart/basic_uart.c
+	$(CC) $(CCFLAGS) $(OPTFLAGS) -o test_src/basic_uart/basic_uart test_src/basic_uart/basic_uart.c $(LDFLAGS)
 
 clean:
-	-rm -f *.o bbb_main
+	-rm -f *.o *.d test_src/basic_uart/basic_uart/*.o test_src/basic_uart/basic_uart/*.d
+	-rm -f test_src/basic_uart/basic_uart

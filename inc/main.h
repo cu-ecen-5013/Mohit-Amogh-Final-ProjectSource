@@ -1,4 +1,4 @@
-#define NUM_OF_TASKS     (6)
+#define NUM_OF_TASKS          (7)
 
 /* Shared memory defines */
 #define PSHM_1_NAME           ("/pshm_1")
@@ -47,7 +47,7 @@ char* lux_sem_name = "lux_sem";
 char* act_sem_name = "act_sem";
 char* log_sem_name = "log_sem";
 char* urx_sem_1_name = "urx_sem_1";
-char* urx_sem_2_name = "urx_sem_2";
+// char* urx_sem_2_name = "urx_sem_2";
 
 /*** Lux sensor ***/
 #include <math.h>
@@ -90,3 +90,9 @@ int uart_fd;
 /*** Actuators ***/
 #define ACT_LED_GPIO    (87)       // USR LED 2
 #define ACT_BUZ_GPIO    (67)       // P8_08
+
+/*** Socket ***/
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <linux/fs.h>

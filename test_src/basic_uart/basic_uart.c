@@ -40,20 +40,24 @@ int main(void)
 
     tcsetattr(fd, TCSAFLUSH, &options);
     
-    printf("Basic UART test\n");
+    printf("Basic UART test - 2\n");
 
     if(fork() == 0)     // parent
     {
         printf("[P]: Sending string\n");
 
         // send string
-        unsigned char string_tx[13] = "Hello World!";
-        printf("[P]: sending-> '%s'\n", string_tx);
-        if ((cnt = write(fd, &string_tx, 13)) < 0)
+        // unsigned char string_tx[13] = "Hello World!";
+        // printf("[P]: sending-> '%s'\n", string_tx);
+
+        unsigned char send = 'g';
+
+        if ((cnt = write(fd, (void*)&send, 1)) < 0)
         {
             perror("[P]: write\n");
             return -1;
         }
+        usleep(10000);
     }
     else                // child
     {
@@ -64,7 +68,7 @@ int main(void)
 
         // receive string
         unsigned char string_rx[13];
-        if ((cnt = read(fd, (void*)string_rx, 13)) < 0)
+        if ((cnt = read(fd, (void*)string_rx, 1)) < 0)
         {
             perror("[C]: read\n");
             return -1;
@@ -76,7 +80,7 @@ int main(void)
         }
         else
         {
-            printf("[C]: received-> '%s'", string_rx);
+            printf("[C]: received-> '%c'", string_rx[0]);
         }
     }
 

@@ -11,10 +11,12 @@
 #include <fcntl.h>
 #include <time.h>
 #include <semaphore.h>
+#include <signal.h> 
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
 #include <syslog.h>
+#include <errno.h>
 
 #include "../inc/main.h"
 
@@ -43,6 +45,7 @@ int actuate(uint8_t actuator, uint8_t value);
 int actuators_deinit(void);
 
 void log_task(void);
+void soc_task(void);
 
 uint8_t uart_init(void);
 uint8_t uart_deinit(void);
@@ -55,7 +58,8 @@ int main(void)
                                    utx_task,
                                    urx_task,
                                    act_task,
-                                   log_task };
+                                   log_task,
+                                   soc_task };
     pid_t fork_pid[NUM_OF_TASKS];
     pid_t wait_pid;
     int task_cnt = NUM_OF_TASKS;
@@ -91,8 +95,8 @@ int main(void)
     if (sem_close(sem_des) < 0) { error("[MAIN] sem_close"); }
     if ((sem_des = sem_open(urx_sem_1_name, O_CREAT, 0600, 0)) < 0) { error("[MAIN] sem_open"); }
     if (sem_close(sem_des) < 0) { error("[MAIN] sem_close"); }
-    if ((sem_des = sem_open(urx_sem_2_name, O_CREAT, 0600, 0)) < 0) { error("[MAIN] sem_open"); }
-    if (sem_close(sem_des) < 0) { error("[MAIN] sem_close"); }
+    // if ((sem_des = sem_open(urx_sem_2_name, O_CREAT, 0600, 0)) < 0) { error("[MAIN] sem_open"); }
+    // if (sem_close(sem_des) < 0) { error("[MAIN] sem_close"); }
 
     /* Create each task using fork */
     syslog(LOG_DEBUG, "[MAIN] Starting Tasks\n");
@@ -134,7 +138,7 @@ int main(void)
     if (sem_unlink(act_sem_name) < 0) { error("[MAIN] sem_unlink"); }
     if (sem_unlink(log_sem_name) < 0) { error("[MAIN] sem_unlink"); }
     if (sem_unlink(urx_sem_1_name) < 0) { error("[MAIN] sem_unlink"); }
-    if (sem_unlink(urx_sem_2_name) < 0) { error("[MAIN] sem_unlink"); }
+    // if (sem_unlink(urx_sem_2_name) < 0) { error("[MAIN] sem_unlink"); }
 
     /* Unlink shared memory */
     if (shm_unlink(PSHM_1_NAME) < 0) { error("[MAIN] shm_unlink"); }
@@ -403,7 +407,9 @@ void utx_task(void)
             PDEBUG("[UTX ] [%d] shmseg_lux.data = %d\n", iteration, shmseg_utx.data);
 
             /* Transmit data to TIVA */
-            if ((cnt = write(uart_fd, shmseg_utx_ptr, sizeof(SHMSEG_1))) < 0) { error("[UTX ] write"); }
+            // if ((cnt = write(uart_fd, shmseg_utx_ptr, sizeof(SHMSEG_1))) < 0) { error("[UTX ] write"); }
+            char* sn = "hello";
+            if ((cnt = write(uart_fd, (void*)sn, 6)) < 0) { error("[UTX ] write"); }
         }
 
         /* Wait for new capacitive sensor data - with 10 ms timeout */
@@ -422,7 +428,7 @@ void utx_task(void)
             PDEBUG("[UTX ] [%d] shmseg_cap.data = %d\n", iteration, shmseg_utx.data);
 
             /* Transmit data to TIVA */
-            if ((cnt = write(uart_fd, shmseg_utx_ptr, sizeof(SHMSEG_1))) < 0) { error("[UTX ] write"); }
+            // if ((cnt = write(uart_fd, shmseg_utx_ptr, sizeof(SHMSEG_1))) < 0) { error("[UTX ] write"); }
         }
     }
 
@@ -444,7 +450,7 @@ void urx_task(void)
     PDEBUG("[URX ] Task Started - PID %ld\n", (long)getpid());
 
     int pshm_2_fd;
-    sem_t *act_sem, *log_sem, *urx_sem_1, *urx_sem_2;
+    sem_t *act_sem, *log_sem, *urx_sem_1; //*urx_sem_2;
     SHMSEG_2 shmseg_urx;
     SHMSEG_2 *shmseg_urx_ptr = &shmseg_urx;
     SHMSEG_2 *pshm_2_base = NULL;
@@ -635,8 +641,8 @@ void log_task(void)
         /* Wait for new actuator data */
         sem_wait(log_sem);
 
-        sem_getvalue(urx_sem_1, &urx_sem_val);
-        syslog(LOG_DEBUG, "[LOG ] SEM_GETVALUE = %d\n", urx_sem_val);
+        // sem_getvalue(urx_sem_1, &urx_sem_val);
+        // syslog(LOG_DEBUG, "[LOG ] SEM_GETVALUE = %d\n", urx_sem_val);
 
         /* Read data from shared memory */
         memcpy((void*)shmseg_log_ptr, (void*)(pshm_2_base), sizeof(SHMSEG_2));
@@ -661,6 +667,101 @@ void log_task(void)
     /* Close the semaphore */
     if (sem_close(log_sem) < 0) { error("[LOG ] sem_close"); }
     if (sem_close(urx_sem_1) < 0) { error("[LOG ] sem_close"); }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////
+
+/* Socket Server Task */
+void soc_task(void)
+{
+    syslog(LOG_DEBUG, "[SOC ] Task Started - PID %ld\n", (long)getpid());
+    PDEBUG("[SOC ] Task Started - PID %ld\n", (long)getpid());
+
+    // setup socket open, bind, listen
+    
+    // create 2 threads
+    // one thread logs data to character driver
+    // other thread handles socket connection
+
+    // in thread 1 - put current while 1 code, call timestamp function, append timestamp to start of string,
+    // open char device in write only mode (if possible), write, close char dev, sem_wait(log_sem)
+    // for timestamps, get clock_realtime (or monotonic?), put it in correct format - make function
+
+    // in thread 2 - accept call, read string from client, check if ioctl command else send error, 
+    // open char device O_RDWR, send ioctl command, read from char dev, close char dev, send buff to client, 
+    // close client socket, free mallocs
+    // if client sends invalid command or big string, send error and ioctl command usage to client
+
+    // char dev - 
+    int iteration;
+    int sock, cli;
+    struct sockaddr_in server, client;
+    unsigned int len;
+    char recvbuff[100];
+    char *sendbuff = (char *)calloc(1000, sizeof(char));
+    int dev_fd;
+
+    /* Socket */
+    if((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1) { error("[SOC ] socket"); }
+
+    /* Bind to port 9000 */
+    server.sin_family = AF_INET;
+    server.sin_port = htons(9000);
+    server.sin_addr.s_addr = INADDR_ANY;
+    bzero(&server.sin_zero, 8);
+
+    len = sizeof(struct sockaddr_in);
+
+    if((bind(sock, (struct sockaddr *)&server, len)) == -1) { error("[SOC ] bind"); }
+
+    /* Listen */
+    if((listen(sock, 5)) == -1) { error("[SOC ] listen"); }
+
+    while(1)
+    {
+        iteration++;
+
+        bzero(recvbuff, sizeof(recvbuff));
+        bzero(sendbuff, sizeof(sendbuff));
+
+        syslog(LOG_DEBUG, "[SOC ] here\n");
+
+        /* Accept */
+        if((cli = accept(sock, (struct sockaddr *)&client, &len)) == -1) { error("[SOC ] accept"); }
+        // log ip address of connected client
+        syslog(LOG_DEBUG, "[SOC ] [%d] Accepted connection from %s\n", iteration, inet_ntoa(client.sin_addr));
+
+        syslog(LOG_DEBUG, "[SOC ] here 2\n");
+
+        /* Read client message */
+        read(cli, recvbuff, sizeof(recvbuff));
+
+        /* TODO: check validity of ioctl command */
+
+        syslog(LOG_DEBUG, "[SOC ] [%d] Read: %s\n", iteration, recvbuff);
+
+        // // open a file descriptor to read whole content of file
+        // if ((dev_fd = open("/dev/aesdchar", O_RDONLY | O_CREAT, 0644)) < 0) { error("[SOC ] open"); }
+
+        // off_t ret = fsize("/dev/aesdchar");
+        // read(dev_fd, sendbuff, ret);
+
+        sendbuff = "hi, this is socket task\n";
+
+        // send buffer data to client
+        send(cli, sendbuff, strlen(sendbuff), 0);
+        // close(dev_fd);
+
+        /* Close client socket */
+        close(cli);
+        // log ip address of connected client
+        syslog(LOG_DEBUG, "[SOC ] [%d] Closed connection to %s\n", iteration, inet_ntoa(client.sin_addr));
+    }
+
+    /* Close socket */
+    close(sock);
+
+    // syslog(LOG_CRIT, "Caught signal, exiting");
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
