@@ -20,7 +20,7 @@ int main(void)
         return -1;
     }
 
-    // fcntl(fd, F_SETFL, 0);
+    fcntl(fd, F_SETFL, 0);
     tcgetattr(fd, &options);
     if((cfsetispeed(&options, B115200)) == -1)
     {
@@ -40,7 +40,7 @@ int main(void)
 
     tcsetattr(fd, TCSAFLUSH, &options);
     
-    printf("Basic UART - 33\n");
+    printf("Basic UART - 55\n");
 
     // if(fork() == 0)     // parent
     // {

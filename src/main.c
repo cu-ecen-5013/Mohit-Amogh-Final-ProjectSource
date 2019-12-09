@@ -51,7 +51,7 @@ uint8_t uart_init(void);
 uint8_t uart_deinit(void);
 
 int main(void)
-{
+{    
     // array of function pointers
     void(*fun_ptr_arr[])(void) = { lux_task, 
                                    cap_task,
@@ -68,6 +68,9 @@ int main(void)
     sem_t *sem_des;
 
     int pshm_1_fd, pshm_2_fd;               // file descriptor, from shm_open
+
+    PDEBUG("[MAIN] PROGRAM START - 3\n");
+    syslog(LOG_DEBUG, "[MAIN] PROGRAM START - 3\n");
 
     /* Initialize UART */
     if(uart_init() < 0) { error("[MAIN] uart init"); }
@@ -407,9 +410,9 @@ void utx_task(void)
             PDEBUG("[UTX ] [%d] shmseg_lux.data = %d\n", iteration, shmseg_utx.data);
 
             /* Transmit data to TIVA */
-            // if ((cnt = write(uart_fd, shmseg_utx_ptr, sizeof(SHMSEG_1))) < 0) { error("[UTX ] write"); }
-            char* sn = "hello";
-            if ((cnt = write(uart_fd, (void*)sn, 6)) < 0) { error("[UTX ] write"); }
+            if ((cnt = write(uart_fd, shmseg_utx_ptr, sizeof(SHMSEG_1))) < 0) { error("[UTX ] write"); }
+            // char* sn = "hello";
+            // if ((cnt = write(uart_fd, (void*)sn, 6)) < 0) { error("[UTX ] write"); }
         }
 
         /* Wait for new capacitive sensor data - with 10 ms timeout */
@@ -428,7 +431,7 @@ void utx_task(void)
             PDEBUG("[UTX ] [%d] shmseg_cap.data = %d\n", iteration, shmseg_utx.data);
 
             /* Transmit data to TIVA */
-            // if ((cnt = write(uart_fd, shmseg_utx_ptr, sizeof(SHMSEG_1))) < 0) { error("[UTX ] write"); }
+            if ((cnt = write(uart_fd, shmseg_utx_ptr, sizeof(SHMSEG_1))) < 0) { error("[UTX ] write"); }
         }
     }
 
@@ -721,17 +724,10 @@ void soc_task(void)
     {
         iteration++;
 
-        bzero(recvbuff, sizeof(recvbuff));
-        bzero(sendbuff, sizeof(sendbuff));
-
-        syslog(LOG_DEBUG, "[SOC ] here\n");
-
         /* Accept */
         if((cli = accept(sock, (struct sockaddr *)&client, &len)) == -1) { error("[SOC ] accept"); }
         // log ip address of connected client
         syslog(LOG_DEBUG, "[SOC ] [%d] Accepted connection from %s\n", iteration, inet_ntoa(client.sin_addr));
-
-        syslog(LOG_DEBUG, "[SOC ] here 2\n");
 
         /* Read client message */
         read(cli, recvbuff, sizeof(recvbuff));
