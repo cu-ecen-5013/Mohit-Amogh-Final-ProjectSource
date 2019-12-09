@@ -17,8 +17,8 @@ endif
 all: basic_uart
 
 basic_uart: test_src/basic_uart/basic_uart.c
-	$(CC) $(CCFLAGS) $(OPTFLAGS) -o test_src/basic_uart/basic_uart test_src/basic_uart/basic_uart.c $(LDFLAGS)
+	$(CC) $(CCFLAGS) $(OPTFLAGS) -o basic_uart test_src/basic_uart/basic_uart.c $(LDFLAGS)
 
 clean:
 	-rm -f *.o *.d test_src/basic_uart/basic_uart/*.o test_src/basic_uart/basic_uart/*.d
-	-rm -f test_src/basic_uart/basic_uart
+	-rm -f basic_uart
