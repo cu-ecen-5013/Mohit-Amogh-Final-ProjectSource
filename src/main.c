@@ -612,6 +612,9 @@ void log_task(void)
     SHMSEG_2 *shmseg_log_ptr = &shmseg_log;
     SHMSEG_2 *pshm_2_base = NULL;
     // int ret;
+    char *time_buff_1, *time_buff_2;
+    char log_buff[30];
+    time_t time_ptr;
     int iteration;
     int urx_sem_val;
 
@@ -644,22 +647,34 @@ void log_task(void)
         /* Wait for new actuator data */
         sem_wait(log_sem);
 
-        // sem_getvalue(urx_sem_1, &urx_sem_val);
-        // syslog(LOG_DEBUG, "[LOG ] SEM_GETVALUE = %d\n", urx_sem_val);
-
         /* Read data from shared memory */
         memcpy((void*)shmseg_log_ptr, (void*)(pshm_2_base), sizeof(SHMSEG_2));
 
+        /* Post semaphore for uart rx */
         sem_post(urx_sem_1);
+
+        /* Take timestamp */
+        // format - [Tue Feb 30 14:22:05] [LUX] [35]
+        time(&time_ptr);
+        time_buff_1 = ctime(&time_ptr);
+        strncpy(time_buff_2, time_buff_1, 24);
 
         syslog(LOG_DEBUG, "[LOG ] [%d] shmseg_log.actuator = %d\n", iteration, shmseg_log.actuator);
         syslog(LOG_DEBUG, "[LOG ] [%d] shmseg_log.value = %d\n", iteration, shmseg_log.value);
 
         /* Log actuator data */
         if (shmseg_log.actuator == LED)
+        {
+            sprintf(log_buff, "[%s] [LED] [%d]", time_buff_2, shmseg_log.value);
+            PDEBUG("[LOG ] %s\n", log_buff);
             syslog(LOG_INFO, "[LOG ] LED value = %d\n", shmseg_log.value);
+        }
         else if (shmseg_log.actuator == BUZ)
+        {
+            sprintf(log_buff, "[%s] [BUZ] [%d]", time_buff_2, shmseg_log.value);
+            PDEBUG("[LOG ] %s\n", log_buff);
             syslog(LOG_INFO, "[LOG ] BUZ value = %d\n", shmseg_log.value);
+        }
         else
             syslog(LOG_INFO, "[LOG ] Received wrong value\n");
     }
@@ -679,12 +694,6 @@ void soc_task(void)
 {
     syslog(LOG_DEBUG, "[SOC ] Task Started - PID %ld\n", (long)getpid());
     PDEBUG("[SOC ] Task Started - PID %ld\n", (long)getpid());
-
-    // setup socket open, bind, listen
-    
-    // create 2 threads
-    // one thread logs data to character driver
-    // other thread handles socket connection
 
     // in thread 1 - put current while 1 code, call timestamp function, append timestamp to start of string,
     // open char device in write only mode (if possible), write, close char dev, sem_wait(log_sem)
