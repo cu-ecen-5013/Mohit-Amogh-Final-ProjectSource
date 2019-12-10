@@ -26,10 +26,6 @@
 // Circular Buffer Size
 #define CB_SIZE         (10)
 
-#define NUM_OF_IDS      (2)
-char* id_str[NUM_OF_IDS] = { "LED", "BUZ" };
-enum { LED = 0, BUZ } id_enum;
-
 // Circular Buffer Structure
 struct CB_struct
 {

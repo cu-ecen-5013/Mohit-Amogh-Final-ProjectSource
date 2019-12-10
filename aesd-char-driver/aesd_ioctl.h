@@ -18,6 +18,10 @@
 #include <stdint.h>
 #endif
 
+#define NUM_OF_IDS      	(2)
+char* id_str[NUM_OF_IDS] = { "LED", "BUZ" };
+// enum { LED = 0, BUZ } id_enum;
+
 /**
  * A structure to be passed by IOCTL from user space to kernel space, describing the type
  * of data that needs to be retrieved

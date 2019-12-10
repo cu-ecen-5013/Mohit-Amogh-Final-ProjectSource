@@ -15,10 +15,12 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <syslog.h>
 #include <errno.h>
 
 #include "../inc/main.h"
+#include "../aesd-char-driver/aesd_ioctl.h"
 
 
 /* Function declarations */
@@ -52,8 +54,8 @@ uint8_t uart_deinit(void);
 
 int main(void)
 {    
-    PDEBUG("[MAIN] PROGRAM START - 19\n");
-    syslog(LOG_DEBUG, "[MAIN] PROGRAM START - 19\n");
+    PDEBUG("[MAIN] PROGRAM START - 20\n");
+    syslog(LOG_DEBUG, "[MAIN] PROGRAM START - 20\n");
 
     // array of function pointers
     void(*fun_ptr_arr[])(void) = { lux_task, 
@@ -343,8 +345,8 @@ void cap_task(void)
         syslog(LOG_DEBUG, "[CAP ] [%d] cap reading received = %d\n", iteration, ret);
 
         /* Sleep - period of measurement */
-        // usleep(500000);
-        sleep(2);
+        usleep(500000);
+        // sleep(2);
     }
 
     /* De-initialize capacitive sensor */
@@ -718,6 +720,22 @@ void soc_task(void)
     char recvbuff[100];
     char *sendbuff = (char *)calloc(1000, sizeof(char));
     int dev_fd;
+    int ioc_cmd_flag;
+    int id_match_flag;
+    int id;
+    char num_str[4];
+    struct aesd_read_data ioc_send_data;
+    char* filename = "/dev/aesdchar";
+    off_t ret;
+
+    char* ioc_usage_str = "Invalid Command\n\n"
+                          "Usage:\n"
+                          "1st arg: Command\n"
+                          "2nd arg: ID\n"
+                          "3rd arg: num of latest values\n"
+                          "Supported Command: IOCTL\n"
+                          "Supported IDS:     LED, BUZ\n"
+                          "Example: IOCTL LED 4\n";
 
     /* Socket */
     if((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1) { error("[SOC ] socket"); }
@@ -738,6 +756,8 @@ void soc_task(void)
     while(1)
     {
         iteration++;
+        ioc_cmd_flag = 0;
+        id_match_flag = 0;
 
         /* Accept */
         if((cli = accept(sock, (struct sockaddr *)&client, &len)) == -1) { error("[SOC ] accept"); }
@@ -746,22 +766,55 @@ void soc_task(void)
 
         /* Read client message */
         read(cli, recvbuff, sizeof(recvbuff));
-
-        /* TODO: check validity of ioctl command */
-
         syslog(LOG_DEBUG, "[SOC ] [%d] Read: %s\n", iteration, recvbuff);
 
-        // // open a file descriptor to read whole content of file
-        // if ((dev_fd = open("/dev/aesdchar", O_RDONLY | O_CREAT, 0644)) < 0) { error("[SOC ] open"); }
+        // open aesdchar device
+        if((dev_fd = open(filename, O_RDWR | O_APPEND, 0644)) < 0) { error("[SOC ] [%d] aesdchar open"); }
 
-        // off_t ret = fsize("/dev/aesdchar");
-        // read(dev_fd, sendbuff, ret);
+        // example - IOCTL LED 3
+        // set flag if "IOCTL" string is present at start
+        ioc_cmd_flag = (strncmp(recvbuff, "IOCTL", 5) == 0) ? (1) : (0);
 
-        sendbuff = "hi, this is socket task\n";
+        // get id
+        for(id=0; id<NUM_OF_IDS; id++)
+        {
+            id_match_flag = (strncmp(&recvbuff[6], id_str[id], 3) == 0) ? 1 : 0;
+            if(id_match_flag == 1) { break; }
+        }
+
+        // store id in ioctl struct
+        ioc_send_data.id = id;
+        PDEBUG("[SOC ] [%d] id  : %d\n", iteration, ioc_send_data.id);
+
+        if((ioc_cmd_flag == 1) && (id_match_flag == 1))
+        {
+            // extract num and store it in ioctl struct
+            for(int k=0; ((recvbuff[10 + k] != '\n') || (recvbuff[10 + k] != '\0') ); k++)
+            {
+                num_str[k] = recvbuff[10 + k];
+            }
+            ioc_send_data.num = (uint16_t)atoi(num_str);
+            PDEBUG("[SOC ] [%d] num : %d\n", iteration, ioc_send_data.num);
+
+            // send ioctl data
+            ioctl(dev_fd, IOC_GET_DATA, &ioc_send_data);
+
+            struct stat st; 
+            if (stat(filename, &st) == 0)
+                ret = st.st_size;
+
+            // read data from aesdchar
+            read(dev_fd, sendbuff, ret);
+        }
+        else
+        {
+            PDEBUG("[SOC ] [%d] wrong command\n", iteration);
+            sendbuff = ioc_usage_str;
+        }
 
         // send buffer data to client
         send(cli, sendbuff, strlen(sendbuff), 0);
-        // close(dev_fd);
+        close(dev_fd);
 
         /* Close client socket */
         close(cli);
