@@ -48,7 +48,7 @@ struct ioc_struct
 struct aesd_dev
 {
     unsigned long size;		// unused - size of device file
-	struct CB_struct CB[NUM_OF_IDS];
+	struct CB_struct CB[2];
 	struct ioc_struct ioc; 
 	struct mutex lock;
 	struct cdev cdev;	  /* Char device structure		*/

@@ -57,9 +57,9 @@ long aesd_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	int retval = 0;
     int j = 0;
-	int size = 0;
-	loff_t newpos;
-	int res;
+	// int size = 0;
+	// loff_t newpos;
+	// int res;
 	struct aesd_read_data recv_data;
 	int cnt = 0;
 
@@ -122,14 +122,17 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
     struct aesd_dev *dev = filp->private_data;
     int i;                      // for iterations
     unsigned long send_size;    // store size of data that needs to be sent to user
+    int id;
+    int l_head;
+	int l_tail;
 
 	if(mutex_lock_interruptible(&dev->lock)) { return -ERESTARTSYS; }
 	PDEBUG("[DRV ] [READ ] mutex locked\n");
 
     // store ioc variables locally
-    int id = dev->ioc.id;
-    int l_head = dev->ioc.head;
-	int l_tail = dev->ioc.tail;
+	id = dev->ioc.id;
+	l_head = dev->ioc.head;
+	l_tail = dev->ioc.tail;
 
     PDEBUG("[DRV ] [READ ] id     : %d\n", id);
     PDEBUG("[DRV ] [READ ] l_head : %d\n", l_head);
@@ -138,6 +141,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
     PDEBUG("[DRV ] [READ ] dev->CB[%d].fill_size = %d and f_pos = %lld\n", id, dev->CB[id].fill_size, *f_pos);
 
     // calculate size of data that needs to be send to user
+	send_size = 0;
     for(i=0; i<CB_SIZE; i++)
     {
         // break if local tail reaches head where new data will be stored
@@ -156,7 +160,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 		goto out;
 
     // restore l_tail value
-    int l_tail = dev->ioc.tail;
+    l_tail = dev->ioc.tail;
 
 	// send device file contents
 	for(i=0; i<CB_SIZE; i++)
@@ -204,9 +208,9 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 
     // compare string to get id number
     // loop will break after id matches
-    for(id=0; i<NUM_OF_IDS; id++)
+    for(id=0; id<NUM_OF_IDS; id++)
     {
-        if ((strncmp(id_str[id], &buf[28], 3) == 0)
+        if ((strncmp(id_str[id], &buf[28], 3) == 0))
             break;
     }
 
@@ -235,7 +239,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     dev->CB[id].fill_size = 0;
 	for(j=0; j<CB_SIZE; j++)
 		dev->CB[id].fill_size += dev->CB[id].size[j];
-	PDEBUG("[DRV ] [WRITE] CB[%d] fill_size : %ld\n", id, dev->CB[id].fill_size);
+	PDEBUG("[DRV ] [WRITE] CB[%d] fill_size : %d\n", id, dev->CB[id].fill_size);
 
 	mutex_unlock(&dev->lock);
 	PDEBUG("[DRV ] [WRITE] mutex unlocked\n");
