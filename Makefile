@@ -19,10 +19,10 @@ all: bbb_main
 bbb_main: main.o gpio.o
 	$(CC) $(CCFLAGS) $(OPTFLAGS) -o bbb_main main.o gpio.o $(LDFLAGS)
 
-main.o: src/main.c inc/main.h inc/gpio.h aesd-char-driver/aesd_ioctl.h
+main.o: src/main.c
 	$(CC) $(CCFLAGS) $(OPTFLAGS) -c src/main.c $(LDFLAGS)
 
-gpio.o: src/gpio.c inc/gpio.h
+gpio.o: src/gpio.c
 	$(CC) $(CCFLAGS) -c src/gpio.c
 
 # bbb_main: src/main.c inc/main.h
