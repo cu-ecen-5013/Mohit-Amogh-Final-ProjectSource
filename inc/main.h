@@ -84,11 +84,11 @@ int uart_fd;
 #define ON              (1)
 #define OFF             (0)
 
-#define CAP_LED_GPIO    (53)       // USR LED 0
+// #define CAP_LED_GPIO    (53)       // USR LED 0
 #define CAP_DATA_GPIO   (69)       // P8_09
 
 /*** Actuators ***/
-#define ACT_LED_GPIO    (87)       // USR LED 2
+#define ACT_LED_GPIO    (53)       // USR LED 0
 #define ACT_BUZ_GPIO    (67)       // P8_08
 
 /*** Socket ***/

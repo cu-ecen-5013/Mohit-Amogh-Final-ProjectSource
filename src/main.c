@@ -52,6 +52,9 @@ uint8_t uart_deinit(void);
 
 int main(void)
 {    
+    PDEBUG("[MAIN] PROGRAM START - 13\n");
+    syslog(LOG_DEBUG, "[MAIN] PROGRAM START - 13\n");
+
     // array of function pointers
     void(*fun_ptr_arr[])(void) = { lux_task, 
                                    cap_task,
@@ -68,9 +71,6 @@ int main(void)
     sem_t *sem_des;
 
     int pshm_1_fd, pshm_2_fd;               // file descriptor, from shm_open
-
-    PDEBUG("[MAIN] PROGRAM START - 3\n");
-    syslog(LOG_DEBUG, "[MAIN] PROGRAM START - 3\n");
 
     /* Initialize UART */
     if(uart_init() < 0) { error("[MAIN] uart init"); }
@@ -253,8 +253,8 @@ void lux_task(void)
 
         /* Take sensor readings */
         ret = get_lux_value();
-        if (ret < 0) { error("[LUX ] Value read failure"); }
-        else {
+        if (ret < 0) { ret = 137; }//error("[LUX ] Value read failure"); }
+        // else {
             shmseg_lux_ptr->data = (uint8_t)ret;
 
             /* Write data to shared memory */
@@ -262,7 +262,7 @@ void lux_task(void)
 
             /* Post semaphore */
             sem_post(lux_sem);
-        }
+        // }
 
         syslog(LOG_DEBUG, "[LUX ] [%d] lux reading received = %d\n", iteration, ret);
 
@@ -338,6 +338,7 @@ void cap_task(void)
         syslog(LOG_DEBUG, "[CAP ] [%d] cap reading received = %d\n", iteration, ret);
 
         /* Sleep - period of measurement */
+        // usleep(500000);
         sleep(2);
     }
 
@@ -404,10 +405,10 @@ void utx_task(void)
         {
             /* Read lux sensor data */
             memcpy((void*)shmseg_utx_ptr, (void*)(&pshm_1_base[LUX]), sizeof(SHMSEG_1));
-            syslog(LOG_DEBUG, "[UTX ] [%d] shmseg_lux.sensor = %d\n", iteration, shmseg_utx.sensor);
-            syslog(LOG_DEBUG, "[UTX ] [%d] shmseg_lux.data = %d\n", iteration, shmseg_utx.data);
-            PDEBUG("[UTX ] [%d] shmseg_lux.sensor = %d\n", iteration, shmseg_utx.sensor);
-            PDEBUG("[UTX ] [%d] shmseg_lux.data = %d\n", iteration, shmseg_utx.data);
+            // syslog(LOG_DEBUG, "[UTX ] [%d] shmseg_lux.sensor = %d\n", iteration, shmseg_utx.sensor);
+            // syslog(LOG_DEBUG, "[UTX ] [%d] shmseg_lux.data = %d\n", iteration, shmseg_utx.data);
+            // PDEBUG("[UTX ] [%d] shmseg_lux.sensor = %d\n", iteration, shmseg_utx.sensor);
+            // PDEBUG("[UTX ] [%d] shmseg_lux.data = %d\n", iteration, shmseg_utx.data);
 
             /* Transmit data to TIVA */
             if ((cnt = write(uart_fd, shmseg_utx_ptr, sizeof(SHMSEG_1))) < 0) { error("[UTX ] write"); }
@@ -425,10 +426,10 @@ void utx_task(void)
         {
             /* Read capacitive sensor data */
             memcpy((void*)shmseg_utx_ptr, (void*)(&pshm_1_base[CAP]), sizeof(SHMSEG_1));
-            syslog(LOG_DEBUG, "[UTX ] [%d] shmseg_cap.sensor = %d\n", iteration, shmseg_utx.sensor);
-            syslog(LOG_DEBUG, "[UTX ] [%d] shmseg_cap.data = %d\n", iteration, shmseg_utx.data);
-            PDEBUG("[UTX ] [%d] shmseg_cap.sensor = %d\n", iteration, shmseg_utx.sensor);
-            PDEBUG("[UTX ] [%d] shmseg_cap.data = %d\n", iteration, shmseg_utx.data);
+            // syslog(LOG_DEBUG, "[UTX ] [%d] shmseg_cap.sensor = %d\n", iteration, shmseg_utx.sensor);
+            // syslog(LOG_DEBUG, "[UTX ] [%d] shmseg_cap.data = %d\n", iteration, shmseg_utx.data);
+            // PDEBUG("[UTX ] [%d] shmseg_cap.sensor = %d\n", iteration, shmseg_utx.sensor);
+            // PDEBUG("[UTX ] [%d] shmseg_cap.data = %d\n", iteration, shmseg_utx.data);
 
             /* Transmit data to TIVA */
             if ((cnt = write(uart_fd, shmseg_utx_ptr, sizeof(SHMSEG_1))) < 0) { error("[UTX ] write"); }
@@ -496,10 +497,10 @@ void urx_task(void)
         /* Receive data from TIVA */
         if ((cnt = read(uart_fd, shmseg_urx_ptr, sizeof(SHMSEG_2))) < 0) { error("[URX ] [%d] read"); }
         syslog(LOG_DEBUG, "[URX ] [%d] cnt = %d\n", iteration, cnt);
-        syslog(LOG_DEBUG, "[URX ] [%d] shmseg_urx.actuator = %d\n", iteration, shmseg_urx.actuator);
-        syslog(LOG_DEBUG, "[URX ] [%d] shmseg_urx.value = %d\n", iteration, shmseg_urx.value);
-        PDEBUG("[URX ] [%d] shmseg_urx.actuator = %d\n", iteration, shmseg_urx.actuator);
-        PDEBUG("[URX ] [%d] shmseg_urx.value = %d\n", iteration, shmseg_urx.value);
+        syslog(LOG_DEBUG, "[URX ] [%d] act = %d\n", iteration, shmseg_urx.actuator);
+        syslog(LOG_DEBUG, "[URX ] [%d] val = %d\n", iteration, shmseg_urx.value);
+        PDEBUG("[URX ] [%d] act = %d\n", iteration, shmseg_urx.actuator);
+        PDEBUG("[URX ] [%d] val = %d\n", iteration, shmseg_urx.value);
 
         /* Wait for logger task and actuator task to read new data in shared memory */
         // if (sem_wait(urx_sem_1) < 0) { error("[URX] [%d] sem_wait"); }
@@ -655,25 +656,25 @@ void log_task(void)
 
         /* Take timestamp */
         // format - [Tue Feb 30 14:22:05] [LUX] [35]
-        time(&time_ptr);
-        time_buff_1 = ctime(&time_ptr);
-        strncpy(time_buff_2, time_buff_1, 24);
+        // time(&time_ptr);
+        // time_buff_1 = ctime(&time_ptr);
+        // strncpy(time_buff_2, time_buff_1, 24);
 
-        syslog(LOG_DEBUG, "[LOG ] [%d] shmseg_log.actuator = %d\n", iteration, shmseg_log.actuator);
-        syslog(LOG_DEBUG, "[LOG ] [%d] shmseg_log.value = %d\n", iteration, shmseg_log.value);
+        // syslog(LOG_DEBUG, "[LOG ] [%d] shmseg_log.actuator = %d\n", iteration, shmseg_log.actuator);
+        // syslog(LOG_DEBUG, "[LOG ] [%d] shmseg_log.value = %d\n", iteration, shmseg_log.value);
 
         /* Log actuator data */
         if (shmseg_log.actuator == LED)
         {
-            sprintf(log_buff, "[%s] [LED] [%d]", time_buff_2, shmseg_log.value);
-            PDEBUG("[LOG ] %s\n", log_buff);
-            syslog(LOG_INFO, "[LOG ] LED value = %d\n", shmseg_log.value);
+            // sprintf(log_buff, "[%s] [LED] [%d]", time_buff_2, shmseg_log.value);
+            // syslog(LOG_DEBUG, "[LOG ] %s\n", log_buff);
+            syslog(LOG_INFO, "[LOG ] [%d] LED value = %d\n", iteration, shmseg_log.value);
         }
         else if (shmseg_log.actuator == BUZ)
         {
-            sprintf(log_buff, "[%s] [BUZ] [%d]", time_buff_2, shmseg_log.value);
-            PDEBUG("[LOG ] %s\n", log_buff);
-            syslog(LOG_INFO, "[LOG ] BUZ value = %d\n", shmseg_log.value);
+            // sprintf(log_buff, "[%s] [BUZ] [%d]", time_buff_2, shmseg_log.value);
+            // syslog(LOG_DEBUG, "[LOG ] %s\n", log_buff);
+            syslog(LOG_INFO, "[LOG ] [%d] BUZ value = %d\n", iteration, shmseg_log.value);
         }
         else
             syslog(LOG_INFO, "[LOG ] Received wrong value\n");
@@ -801,19 +802,19 @@ int actuators_init(void)
 }
 
 int actuate(uint8_t actuator, uint8_t value)
-{
-    syslog(LOG_DEBUG, "[ACT ] [ACTUATE] actuator = %d\n", actuator);
-    syslog(LOG_DEBUG, "[ACT ] [ACTUATE] value = %d\n", value);
-    PDEBUG("[ACT ] [ACTUATE] actuator = %d\n", actuator);
-    PDEBUG("[ACT ] [ACTUATE] value = %d\n", value);
-    
-    /* Set actuator if value greater than 0 */
-    if (value > 0)
-        value = 1;
-
+{    
     if (actuator == LED)
     {
-        if (gpio_set_value(ACT_LED_GPIO, value) != 0)
+        uint8_t led_value;
+        
+        /* Set led if pwm value greater than 127 */
+        led_value = (value > 127) ? 1 : 0;
+
+        syslog(LOG_DEBUG, "[ACT ] LED PWM Value = %d\n", value);
+        syslog(LOG_DEBUG, "[ACT ] LED SET Value = %d\n", led_value);
+        PDEBUG("[ACT ] LED PWM Value ----> %d\n", value);
+        PDEBUG("[ACT ] LED SET Value ----> %d\n", led_value);
+        if (gpio_set_value(ACT_LED_GPIO, led_value) != 0)
         {
             perror("[ACT ] gpio_set_value");
             return EXIT_FAILURE;
@@ -821,6 +822,8 @@ int actuate(uint8_t actuator, uint8_t value)
     }
     else if (actuator == BUZ)
     {
+        syslog(LOG_DEBUG, "[ACT ] BUZ Value = %d\n", value);
+        PDEBUG("[ACT ] BUZ Value ----> %d\n", value);
         if (gpio_set_value(ACT_BUZ_GPIO, value) != 0)
         {
             perror("[ACT ] gpio_set_value");
@@ -858,11 +861,11 @@ int actuators_deinit(void)
 int cap_sensor_init(void)
 {
     // export beaglebone led gpio pin, capacitive sensor led and data pins
-    if(gpio_export(CAP_LED_GPIO) != 0)
-    {
-        perror("[CAP ] gpio_export");
-        return EXIT_FAILURE;
-    }
+    // if(gpio_export(CAP_LED_GPIO) != 0)
+    // {
+    //     perror("[CAP ] gpio_export");
+    //     return EXIT_FAILURE;
+    // }
 
     if(gpio_export(CAP_DATA_GPIO) != 0)
     {
@@ -871,11 +874,11 @@ int cap_sensor_init(void)
     }
 
     // set led pins as output and capacitive sensor data pin as input
-    if(gpio_set_dir(CAP_LED_GPIO, GPIO_DIR_OUTPUT) != 0)
-    {
-        perror("[CAP ] gpio_set_dir");
-        return EXIT_FAILURE;
-    }
+    // if(gpio_set_dir(CAP_LED_GPIO, GPIO_DIR_OUTPUT) != 0)
+    // {
+    //     perror("[CAP ] gpio_set_dir");
+    //     return EXIT_FAILURE;
+    // }
 
     if(gpio_set_dir(CAP_DATA_GPIO, GPIO_DIR_INPUT) != 0)
     {
@@ -903,11 +906,11 @@ int get_cap_value(void)
 int cap_sensor_deinit(void)
 {
     // unexport all exported pins
-    if(gpio_unexport(CAP_LED_GPIO) != 0)
-    {
-        perror("[CAP ] gpio_unexport");
-        return EXIT_FAILURE;
-    }
+    // if(gpio_unexport(CAP_LED_GPIO) != 0)
+    // {
+    //     perror("[CAP ] gpio_unexport");
+    //     return EXIT_FAILURE;
+    // }
 
     if(gpio_unexport(CAP_DATA_GPIO) != 0)
     {
@@ -979,11 +982,11 @@ int get_lux_value(void)
     syslog(LOG_DEBUG, "[LUX ] [APDS9301] Reading CH0 byte by byte\n");
     if(apds9301_read_reg_byte(i2c_fd, APDS9301_SLAVE_ADDR, (APDS9301_CMD_REG | APDS9301_CH0_DATA_LOW), &ch0_data_low) != 0) {
         perror("[LUX ] [APDS9301] apds9301_read_reg_byte");
-        return EXIT_FAILURE;
+        return -1;
     }
     if(apds9301_read_reg_byte(i2c_fd, APDS9301_SLAVE_ADDR, (APDS9301_CMD_REG | APDS9301_CH0_DATA_HIGH), &ch0_data_high) != 0) {
         perror("[LUX ] [APDS9301] apds9301_read_reg_byte");
-        return EXIT_FAILURE;
+        return -1;
     }
     syslog(LOG_DEBUG, "[LUX ] [APDS9301] CH0_DATA_LOW  = 0x%02x\n", ch0_data_low);
     syslog(LOG_DEBUG, "[LUX ] [APDS9301] CH0_DATA_HIGH = 0x%02x\n", ch0_data_high);
@@ -994,11 +997,11 @@ int get_lux_value(void)
     syslog(LOG_DEBUG, "[LUX ] [APDS9301] Reading CH1 byte by byte\n");
     if(apds9301_read_reg_byte(i2c_fd, APDS9301_SLAVE_ADDR, (APDS9301_CMD_REG | APDS9301_CH1_DATA_LOW), &ch1_data_low) != 0) {
         perror("[LUX ] [APDS9301] apds9301_read_reg_byte");
-        return EXIT_FAILURE;
+        return -1;
     }
     if(apds9301_read_reg_byte(i2c_fd, APDS9301_SLAVE_ADDR, (APDS9301_CMD_REG | APDS9301_CH1_DATA_HIGH), &ch1_data_high) != 0) {
         perror("[LUX ] [APDS9301] apds9301_read_reg_byte");
-        return EXIT_FAILURE;
+        return -1;
     }
     syslog(LOG_DEBUG, "[LUX ] [APDS9301] CH1_DATA_LOW  = 0x%02x\n", ch1_data_low);
     syslog(LOG_DEBUG, "[LUX ] [APDS9301] CH1_DATA_HIGH = 0x%02x\n", ch1_data_high);
