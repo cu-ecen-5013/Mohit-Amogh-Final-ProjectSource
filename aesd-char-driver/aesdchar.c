@@ -211,7 +211,9 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     for(id=0; id<NUM_OF_IDS; id++)
     {
         if ((strncmp(id_str[id], &buf[28], 3) == 0))
+		{
             break;
+		}
     }
 
 	// if overwrite then free previous data
