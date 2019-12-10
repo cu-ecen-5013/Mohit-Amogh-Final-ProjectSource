@@ -31,8 +31,9 @@ enum { LED = 0,
 
 /* Shared memory 1 segment data */
 typedef struct {
-     uint8_t sensor; 
-     uint8_t data;
+     uint8_t sensor;
+     uint8_t error;
+     uint16_t data;
 } SHMSEG_1;
 
 /* Shared memory 2 segment data */

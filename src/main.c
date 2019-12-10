@@ -52,8 +52,8 @@ uint8_t uart_deinit(void);
 
 int main(void)
 {    
-    PDEBUG("[MAIN] PROGRAM START - 13\n");
-    syslog(LOG_DEBUG, "[MAIN] PROGRAM START - 13\n");
+    PDEBUG("[MAIN] PROGRAM START - 19\n");
+    syslog(LOG_DEBUG, "[MAIN] PROGRAM START - 19\n");
 
     // array of function pointers
     void(*fun_ptr_arr[])(void) = { lux_task, 
@@ -216,7 +216,7 @@ void lux_task(void)
 
     int pshm_1_fd;
     sem_t *lux_sem;
-    SHMSEG_1 shmseg_lux = { 0, 0 };
+    SHMSEG_1 shmseg_lux = { 0, 0, 0 };
     SHMSEG_1 *shmseg_lux_ptr = &shmseg_lux;
     SHMSEG_1 *pshm_1_base = NULL;
     shmseg_lux_ptr->sensor = LUX;
@@ -253,16 +253,20 @@ void lux_task(void)
 
         /* Take sensor readings */
         ret = get_lux_value();
-        if (ret < 0) { ret = 137; }//error("[LUX ] Value read failure"); }
-        // else {
-            shmseg_lux_ptr->data = (uint8_t)ret;
+        if (ret < 0) { 
+            shmseg_lux_ptr->error = 1;
+        }   //error("[LUX ] Value read failure"); }
+        else {
+            shmseg_lux_ptr->error = 0;
 
-            /* Write data to shared memory */
-            memcpy((void*)(&pshm_1_base[LUX]), (void*)shmseg_lux_ptr, sizeof(SHMSEG_1));
+            shmseg_lux_ptr->data = (uint16_t)ret;
+        }
 
-            /* Post semaphore */
-            sem_post(lux_sem);
-        // }
+        /* Write data to shared memory */
+        memcpy((void*)(&pshm_1_base[LUX]), (void*)shmseg_lux_ptr, sizeof(SHMSEG_1));
+
+        /* Post semaphore */
+        sem_post(lux_sem);
 
         syslog(LOG_DEBUG, "[LUX ] [%d] lux reading received = %d\n", iteration, ret);
 
@@ -288,7 +292,7 @@ void cap_task(void)
 
     int pshm_1_fd;
     sem_t *cap_sem;
-    SHMSEG_1 shmseg_cap = { 0, 0 };
+    SHMSEG_1 shmseg_cap = { 0, 0, 0 };
     SHMSEG_1 *shmseg_cap_ptr = &shmseg_cap;
     SHMSEG_1 *pshm_1_base = NULL;
     shmseg_cap_ptr->sensor = CAP;
@@ -326,7 +330,8 @@ void cap_task(void)
         ret = get_cap_value();
         if (ret < 0) { error("[CAP ] Value read failure"); }
         else {
-            shmseg_cap_ptr->data = (uint8_t)ret;
+            shmseg_cap_ptr->error = 0;
+            shmseg_cap_ptr->data = (uint16_t)ret;
 
             /* Write data to shared memory */
             memcpy((void*)(&pshm_1_base[CAP]), (void*)shmseg_cap_ptr, sizeof(SHMSEG_1));
@@ -977,7 +982,7 @@ int get_lux_value(void)
     unsigned char ch1_data_low, ch1_data_high;
     uint16_t ch0_data, ch1_data;
     float lux_flt;
-    int lux_ret;
+    uint16_t lux_ret;
     
     syslog(LOG_DEBUG, "[LUX ] [APDS9301] Reading CH0 byte by byte\n");
     if(apds9301_read_reg_byte(i2c_fd, APDS9301_SLAVE_ADDR, (APDS9301_CMD_REG | APDS9301_CH0_DATA_LOW), &ch0_data_low) != 0) {
@@ -1012,7 +1017,8 @@ int get_lux_value(void)
     lux_flt = calculate_lux(ch0_data, ch1_data);
     syslog(LOG_DEBUG, "[LUX ] [APDS9301] lux flt value = %0.2f\n", lux_flt);
 
-    lux_ret = (lux_flt < 255.00) ? (int)lux_flt : 255;
+    // lux_ret = (lux_flt < 255.00) ? (int)lux_flt : 255;
+    lux_ret = (int)lux_flt;
     syslog(LOG_DEBUG, "[LUX ] [APDS9301] lux ret value = %d\n", lux_ret);
 
     return lux_ret;
