@@ -50,6 +50,8 @@ char* log_sem_name = "log_sem";
 char* urx_sem_1_name = "urx_sem_1";
 // char* urx_sem_2_name = "urx_sem_2";
 
+volatile sig_atomic_t signal_flag;
+
 /*** Lux sensor ***/
 #include <math.h>
 #include <sys/ioctl.h>

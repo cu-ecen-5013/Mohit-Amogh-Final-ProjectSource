@@ -1,4 +1,10 @@
-/* References:
+/* 
+ * Author: Mohit Rane
+ * 
+ * The main program for BeagleBone Black which contains all the tasks for
+ * data acquizition from sensors and actuation.
+ *
+ * References:
  * 1. http://man7.org/training/download/posix_shm_slides.pdf
  * 2. http://www.cse.psu.edu/~deh25/cmpsc473/notes/OSC/Processes/shm-posix-producer.c
  * 3. http://www.cse.psu.edu/~deh25/cmpsc473/notes/OSC/Processes/shm-posix-consumer.c */
@@ -54,8 +60,8 @@ uint8_t uart_deinit(void);
 
 int main(void)
 {    
-    PDEBUG("[MAIN] PROGRAM START - 20\n");
-    syslog(LOG_DEBUG, "[MAIN] PROGRAM START - 20\n");
+    PDEBUG("[MAIN] PROGRAM START - 26\n");
+    syslog(LOG_DEBUG, "[MAIN] PROGRAM START - 26\n");
 
     // array of function pointers
     void(*fun_ptr_arr[])(void) = { lux_task, 
@@ -100,8 +106,6 @@ int main(void)
     if (sem_close(sem_des) < 0) { error("[MAIN] sem_close"); }
     if ((sem_des = sem_open(urx_sem_1_name, O_CREAT, 0600, 0)) < 0) { error("[MAIN] sem_open"); }
     if (sem_close(sem_des) < 0) { error("[MAIN] sem_close"); }
-    // if ((sem_des = sem_open(urx_sem_2_name, O_CREAT, 0600, 0)) < 0) { error("[MAIN] sem_open"); }
-    // if (sem_close(sem_des) < 0) { error("[MAIN] sem_close"); }
 
     /* Create each task using fork */
     syslog(LOG_DEBUG, "[MAIN] Starting Tasks\n");
@@ -412,31 +416,19 @@ void utx_task(void)
         {
             /* Read lux sensor data */
             memcpy((void*)shmseg_utx_ptr, (void*)(&pshm_1_base[LUX]), sizeof(SHMSEG_1));
-            // syslog(LOG_DEBUG, "[UTX ] [%d] shmseg_lux.sensor = %d\n", iteration, shmseg_utx.sensor);
-            // syslog(LOG_DEBUG, "[UTX ] [%d] shmseg_lux.data = %d\n", iteration, shmseg_utx.data);
-            // PDEBUG("[UTX ] [%d] shmseg_lux.sensor = %d\n", iteration, shmseg_utx.sensor);
-            // PDEBUG("[UTX ] [%d] shmseg_lux.data = %d\n", iteration, shmseg_utx.data);
+            syslog(LOG_DEBUG, "[UTX ] [%d] shmseg_lux.sensor = %d\n", iteration, shmseg_utx.sensor);
+            syslog(LOG_DEBUG, "[UTX ] [%d] shmseg_lux.data = %d\n", iteration, shmseg_utx.data);
 
             /* Transmit data to TIVA */
             if ((cnt = write(uart_fd, shmseg_utx_ptr, sizeof(SHMSEG_1))) < 0) { error("[UTX ] write"); }
-            // char* sn = "hello";
-            // if ((cnt = write(uart_fd, (void*)sn, 6)) < 0) { error("[UTX ] write"); }
         }
 
-        /* Wait for new capacitive sensor data - with 10 ms timeout */
-        // if (clock_gettime(CLOCK_REALTIME, &ts) == -1) { error("[UTX ] clock_gettime"); }
-        // ts.tv_nsec += 50000000;     // 50 ms timeout
-        // ts.tv_sec += ts.tv_nsec / 1000000000;
-        // ts.tv_nsec %= 1000000000;
-        // if (sem_timedwait(cap_sem, &ts) == 0)
         if (sem_wait(cap_sem) == 0)
         {
             /* Read capacitive sensor data */
             memcpy((void*)shmseg_utx_ptr, (void*)(&pshm_1_base[CAP]), sizeof(SHMSEG_1));
-            // syslog(LOG_DEBUG, "[UTX ] [%d] shmseg_cap.sensor = %d\n", iteration, shmseg_utx.sensor);
-            // syslog(LOG_DEBUG, "[UTX ] [%d] shmseg_cap.data = %d\n", iteration, shmseg_utx.data);
-            // PDEBUG("[UTX ] [%d] shmseg_cap.sensor = %d\n", iteration, shmseg_utx.sensor);
-            // PDEBUG("[UTX ] [%d] shmseg_cap.data = %d\n", iteration, shmseg_utx.data);
+            syslog(LOG_DEBUG, "[UTX ] [%d] shmseg_cap.sensor = %d\n", iteration, shmseg_utx.sensor);
+            syslog(LOG_DEBUG, "[UTX ] [%d] shmseg_cap.data = %d\n", iteration, shmseg_utx.data);
 
             /* Transmit data to TIVA */
             if ((cnt = write(uart_fd, shmseg_utx_ptr, sizeof(SHMSEG_1))) < 0) { error("[UTX ] write"); }
@@ -461,7 +453,7 @@ void urx_task(void)
     PDEBUG("[URX ] Task Started - PID %ld\n", (long)getpid());
 
     int pshm_2_fd;
-    sem_t *act_sem, *log_sem, *urx_sem_1; //*urx_sem_2;
+    sem_t *act_sem, *log_sem, *urx_sem_1;
     SHMSEG_2 shmseg_urx;
     SHMSEG_2 *shmseg_urx_ptr = &shmseg_urx;
     SHMSEG_2 *pshm_2_base = NULL;
@@ -492,7 +484,6 @@ void urx_task(void)
     if ((act_sem = sem_open(act_sem_name, 0, 0600, 0)) < 0) { error("[URX ] sem_open"); }
     if ((log_sem = sem_open(log_sem_name, 0, 0600, 0)) < 0) { error("[URX ] sem_open"); }
     if ((urx_sem_1 = sem_open(urx_sem_1_name, 0, 0600, 0)) < 0) { error("[URX ] sem_open"); }
-    // if ((urx_sem_2 = sem_open(urx_sem_2_name, 0, 0600, 1)) < 0) { error("[URX ] sem_open"); }
 
     sem_post(urx_sem_1);
     sem_post(urx_sem_1);
@@ -510,10 +501,8 @@ void urx_task(void)
         PDEBUG("[URX ] [%d] val = %d\n", iteration, shmseg_urx.value);
 
         /* Wait for logger task and actuator task to read new data in shared memory */
-        // if (sem_wait(urx_sem_1) < 0) { error("[URX] [%d] sem_wait"); }
         sem_wait(urx_sem_1);
         sem_wait(urx_sem_1);
-        // sem_wait(urx_sem_2);
 
         /* Write data to shared memory */
         memcpy((void*)pshm_2_base, (void*)shmseg_urx_ptr, sizeof(SHMSEG_2));
@@ -530,7 +519,6 @@ void urx_task(void)
     if (sem_close(act_sem) < 0) { error("[UTX ] sem_close"); }
     if (sem_close(log_sem) < 0) { error("[UTX ] sem_close"); }
     if (sem_close(urx_sem_1) < 0) { error("[UTX ] sem_close"); }
-    // if (sem_close(urx_sem_2) < 0) { error("[UTX ] sem_close"); }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -547,7 +535,6 @@ void act_task(void)
     SHMSEG_2 shmseg_act;
     SHMSEG_2 *shmseg_act_ptr = &shmseg_act;
     SHMSEG_2 *pshm_2_base = NULL;
-    // int ret;
     int iteration;
 
     /* Open shared memory */
@@ -619,12 +606,15 @@ void log_task(void)
     SHMSEG_2 shmseg_log;
     SHMSEG_2 *shmseg_log_ptr = &shmseg_log;
     SHMSEG_2 *pshm_2_base = NULL;
-    // int ret;
-    char *time_buff_1, *time_buff_2;
+    int ret;
+    char *time_buff_1;
+    char time_buff_2[50];
     char log_buff[30];
     time_t time_ptr;
     int iteration;
     int urx_sem_val;
+    char* filename = "/dev/aesdchar";
+    int dev_fd;
 
     /* Open shared memory */
     if ((pshm_2_fd = shm_open(PSHM_2_NAME,                                      /* name of object */
@@ -661,30 +651,33 @@ void log_task(void)
         /* Post semaphore for uart rx */
         sem_post(urx_sem_1);
 
+        // open aesdchar device
+        if((dev_fd = open(filename, O_RDWR | O_APPEND, 0644)) < 0) { error("[SOC ] [%d] aesdchar open"); }
+        PDEBUG("[LOG ] dev_fd = %d\n", dev_fd);
+
         /* Take timestamp */
         // format - [Tue Feb 30 14:22:05] [LUX] [35]
-        // time(&time_ptr);
-        // time_buff_1 = ctime(&time_ptr);
-        // strncpy(time_buff_2, time_buff_1, 24);
-
-        // syslog(LOG_DEBUG, "[LOG ] [%d] shmseg_log.actuator = %d\n", iteration, shmseg_log.actuator);
-        // syslog(LOG_DEBUG, "[LOG ] [%d] shmseg_log.value = %d\n", iteration, shmseg_log.value);
+        time(&time_ptr);
+        time_buff_1 = ctime(&time_ptr);
+        strncpy(time_buff_2, time_buff_1, 24);
 
         /* Log actuator data */
         if (shmseg_log.actuator == LED)
         {
-            // sprintf(log_buff, "[%s] [LED] [%d]", time_buff_2, shmseg_log.value);
-            // syslog(LOG_DEBUG, "[LOG ] %s\n", log_buff);
+            sprintf(log_buff, "[%s] [LED] [%d]", time_buff_2, shmseg_log.value);
+            syslog(LOG_DEBUG, "[LOG ] %s\n", log_buff);
             syslog(LOG_INFO, "[LOG ] [%d] LED value = %d\n", iteration, shmseg_log.value);
         }
         else if (shmseg_log.actuator == BUZ)
         {
-            // sprintf(log_buff, "[%s] [BUZ] [%d]", time_buff_2, shmseg_log.value);
-            // syslog(LOG_DEBUG, "[LOG ] %s\n", log_buff);
+            sprintf(log_buff, "[%s] [BUZ] [%d]", time_buff_2, shmseg_log.value);
+            syslog(LOG_DEBUG, "[LOG ] %s\n", log_buff);
             syslog(LOG_INFO, "[LOG ] [%d] BUZ value = %d\n", iteration, shmseg_log.value);
         }
         else
             syslog(LOG_INFO, "[LOG ] Received wrong value\n");
+
+        close(dev_fd);
     }
 
     /* Unmap the mapped shared memory segment from the address space of the process */
@@ -703,15 +696,6 @@ void soc_task(void)
     syslog(LOG_DEBUG, "[SOC ] Task Started - PID %ld\n", (long)getpid());
     PDEBUG("[SOC ] Task Started - PID %ld\n", (long)getpid());
 
-    // in thread 1 - put current while 1 code, call timestamp function, append timestamp to start of string,
-    // open char device in write only mode (if possible), write, close char dev, sem_wait(log_sem)
-    // for timestamps, get clock_realtime (or monotonic?), put it in correct format - make function
-
-    // in thread 2 - accept call, read string from client, check if ioctl command else send error, 
-    // open char device O_RDWR, send ioctl command, read from char dev, close char dev, send buff to client, 
-    // close client socket, free mallocs
-    // if client sends invalid command or big string, send error and ioctl command usage to client
-
     // char dev - 
     int iteration;
     int sock, cli;
@@ -720,8 +704,8 @@ void soc_task(void)
     char recvbuff[100];
     char *sendbuff = (char *)calloc(1000, sizeof(char));
     int dev_fd;
-    int ioc_cmd_flag;
-    int id_match_flag;
+    uint8_t ioc_cmd_flag;
+    uint8_t id_match_flag;
     int id;
     char num_str[4];
     struct aesd_read_data ioc_send_data;
@@ -756,8 +740,8 @@ void soc_task(void)
     while(1)
     {
         iteration++;
-        ioc_cmd_flag = 0;
-        id_match_flag = 0;
+        ioc_cmd_flag = 1;
+        id_match_flag = 1;
 
         /* Accept */
         if((cli = accept(sock, (struct sockaddr *)&client, &len)) == -1) { error("[SOC ] accept"); }
@@ -773,27 +757,24 @@ void soc_task(void)
 
         // example - IOCTL LED 3
         // set flag if "IOCTL" string is present at start
-        ioc_cmd_flag = (strncmp(recvbuff, "IOCTL", 5) == 0) ? (1) : (0);
+        ioc_cmd_flag = strncmp(recvbuff, "IOCTL", 5);
 
         // get id
         for(id=0; id<NUM_OF_IDS; id++)
         {
-            id_match_flag = (strncmp(&recvbuff[6], id_str[id], 3) == 0) ? 1 : 0;
-            if(id_match_flag == 1) { break; }
+            id_match_flag = strncmp(&recvbuff[6], id_str[id], 3);
+            if(id_match_flag == 0) { break; }
         }
 
         // store id in ioctl struct
         ioc_send_data.id = id;
-        PDEBUG("[SOC ] [%d] id  : %d\n", iteration, ioc_send_data.id);
+        PDEBUG("[SOC ] [%d] id              : %d\n", iteration, ioc_send_data.id);
+        PDEBUG("[SOC ] [%d] ioc_cmd_flag    : %d\n", iteration, ioc_cmd_flag);
+        PDEBUG("[SOC ] [%d] id_match_flag   : %d\n", iteration, id_match_flag);
 
-        if((ioc_cmd_flag == 1) && (id_match_flag == 1))
+        if((ioc_cmd_flag == 0) && (id_match_flag == 0))
         {
-            // extract num and store it in ioctl struct
-            for(int k=0; ((recvbuff[10 + k] != '\n') || (recvbuff[10 + k] != '\0') ); k++)
-            {
-                num_str[k] = recvbuff[10 + k];
-            }
-            ioc_send_data.num = (uint16_t)atoi(num_str);
+            ioc_send_data.num = 3;
             PDEBUG("[SOC ] [%d] num : %d\n", iteration, ioc_send_data.num);
 
             // send ioctl data
@@ -802,6 +783,8 @@ void soc_task(void)
             struct stat st; 
             if (stat(filename, &st) == 0)
                 ret = st.st_size;
+
+            PDEBUG("[SOC ] [%d] ret : %ld\n", iteration, ret);
 
             // read data from aesdchar
             read(dev_fd, sendbuff, ret);
@@ -824,8 +807,6 @@ void soc_task(void)
 
     /* Close socket */
     close(sock);
-
-    // syslog(LOG_CRIT, "Caught signal, exiting");
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -918,25 +899,11 @@ int actuators_deinit(void)
 
 int cap_sensor_init(void)
 {
-    // export beaglebone led gpio pin, capacitive sensor led and data pins
-    // if(gpio_export(CAP_LED_GPIO) != 0)
-    // {
-    //     perror("[CAP ] gpio_export");
-    //     return EXIT_FAILURE;
-    // }
-
     if(gpio_export(CAP_DATA_GPIO) != 0)
     {
         perror("[CAP ] gpio_export");
         return EXIT_FAILURE;
     }
-
-    // set led pins as output and capacitive sensor data pin as input
-    // if(gpio_set_dir(CAP_LED_GPIO, GPIO_DIR_OUTPUT) != 0)
-    // {
-    //     perror("[CAP ] gpio_set_dir");
-    //     return EXIT_FAILURE;
-    // }
 
     if(gpio_set_dir(CAP_DATA_GPIO, GPIO_DIR_INPUT) != 0)
     {
@@ -963,13 +930,6 @@ int get_cap_value(void)
 
 int cap_sensor_deinit(void)
 {
-    // unexport all exported pins
-    // if(gpio_unexport(CAP_LED_GPIO) != 0)
-    // {
-    //     perror("[CAP ] gpio_unexport");
-    //     return EXIT_FAILURE;
-    // }
-
     if(gpio_unexport(CAP_DATA_GPIO) != 0)
     {
         perror("[CAP ] gpio_unexport");
